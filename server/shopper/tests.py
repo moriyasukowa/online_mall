@@ -1,0 +1,22 @@
+from alipay import AliPay
+ALIPAY_CONFIG = {
+    "app_id": "9021000143699271",
+    "alipay_public_key_string": 
+"""-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmqjxGJSnSFhQfRm9CbJ07OO9rBypQ6icu3WfGp0TRl3kTJnQuq/qRBQmh2TBW1sXBTWaacDLvfb/Y2/EIgDB9gzLIUtMLeW9b1w75zCzK38UNiqtsmObevENTf0LgDJ4Gyw9j8ZRN+pvcbyJb7pQJFzyerAWsNnujs6C6arkmCOLa2/zqw7xRrkVhmFdZf4zDn9mr+Ax2+2EgNi+IUPR4TzNhFDZ8yqzimaCmi6Fu7S+2qI9AoKeW3JE+RnnJWWzMtusDsjUwCqh/XvWvcLK0fqB8jEK/P1g8w/9/gLRVmfHOqqeIo8ifYJE2fzmWOqJY7Widwfr0/Nuh2BpRSzl7wIDAQAB
+-----END PUBLIC KEY-----""",  # 应用私钥
+    "app_private_key_string": 
+"""-----BEGIN RSA PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCaqPEYlKdIWFB9Gb0JsnTs472sHKlDqJy7dZ8anRNGXeRMmdC6r+pEFCaHZMFbWxcFNZppwMu99v9jb8QiAMH2DMshS0wt5b1vXDvnMLMrfxQ2Kq2yY5t68Q1N/QuAMngbLD2PxlE36m9xvIlvulAkXPJ6sBaw2e6OzoLpquSYI4trb/OrDvFGuRWGYV1l/jMOf2av4DHb7YSA2L4hQ9HhPM2EUNnzKrOKZoKaLoW7tL7aoj0Cgp5bckT5GeclZbMy26wOyNTAKqH9e9a9wsrR+oHyMQr8/WDzD/3+AtFWZ8c6qp4ijyJ9gkTZ/OZY6oljtaJ3B+vT826HYGlFLOXvAgMBAAECggEAeKRkPVpoCyTo1E0pitDsKIWWRRWua5qxeAFOdQImMPO4zJAHpDjpMuXNEDxmIA80K9oec3Py+mIb4cMjaarRok9kfLox2HOni6CVEciJWtqsN3yfNdJBTGuQh09mkz/LNNcTxn1aiZWUDVKWmtLpBRSECXQmnxnA3yD0ObYWzx1iEGhsbWkwwpCnD7TQFAV8PLO1xgfHGYxj+7F9z+VxKYkxlkEinXtlzD+4DTF/PvH1eiftsl01utoRwmQ3OIjWPV6ykIF/14kXUkrbZK+e2yfP2kWNxT4OqIDf6rJvn/0GqofYWbbHzzYN828Z8QqkX42ot5Dc8t3WnVy3Ywu+YQKBgQDhxjc9UKE1+H8mgxVW4OP3QhaQ9GVcO4R4MZtetwiCiqry5psIHRRILkHk9NmPj+sfXd+TwGXKXFsGpOQP0wEGeAGVo6RPuD9SNpUu6qFp8JvPZKEOSRWzItjB8sPcqaKTJ5EcpEUVXJA0H28fw08+lCT+GoTrlY6ltJrfVvR7iQKBgQCvXXrUMIRGcFI49rfrwUa9dw9LzbMnlbdzKnJBePAUe83//uoqQgWeDIYu1RtfJhU3Tt0Kxn1f7efWlB4oLmh8leQSt4TI2V0UpmP88lpWZoeI3nqLU3gMpR9Ylu1MvKa5RQ2dAed0FejQwPp0VBBX7ggApVWzCZbdBKGFKhsftwKBgQCRS77A9uLImOM7JaDWCGSs+xsKrj2M3cCimUoj6ibP2+2n5EBhOFWVHi/J6MkaWsQ1q3P24hqf4E+0NumORXyjbReX9XgI1cnqXrYjO1wlkXK0RU5goygT4JkeN91UZNb7XLtGc3ECDk+/O3uINWkKHMyxut9PvS/P9Cq3EH7GAQKBgAqVNptljiX+E0gyw2ir0kwOylKFyGEELPz7O8ftt3dU/VqMlK8WKuad1N8wpyU31CHxVW+YCOroHYyahbNhEZcrKIdkodPJIk/jtrcGHSOHrng5DOYplF4W/OxIt2thGyKlIywteD1OMS2f571rcU0NJVh8oc5bLsqJxAGYR+jDAoGBANMhrOVGvQ9aTfCTBE+DKauMGAPQ/fChtMAufAR/Lk3yjELQkI8cqmuOsa8mb9ARAuWHqpuljlYCH4aC7FhBVKw1qu6Ab7RwSpT/hU6dR3Mi7+QRmdcofxZdCjitDGdVL0rjnFjbgLrWCU7ew4fm8VaBW53k2OhbYmyuvkDtF8dm
+-----END RSA PRIVATE KEY-----""",  # 支付宝公钥
+    "sign_type": "RSA2",  # 加密方式
+}
+alipay = AliPay(
+    appid=ALIPAY_CONFIG["app_id"],
+    app_private_key_string=ALIPAY_CONFIG["app_private_key_string"],
+    alipay_public_key_string=ALIPAY_CONFIG["alipay_public_key_string"],
+    sign_type="RSA2",
+)
+
+# 测试签名能力（无报错则说明密钥有效）
+signature = alipay._sign("test")

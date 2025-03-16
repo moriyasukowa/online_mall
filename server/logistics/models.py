@@ -63,7 +63,7 @@ class LogisticsOrder(models.Model):
     
     # 关联客户订单（给客户发货）
     order_info = models.ForeignKey(
-        'shopper.OrderInfo', 
+        OrderInfos, 
         on_delete=models.CASCADE, 
         verbose_name='关联客户订单', 
         null=True, 
@@ -113,7 +113,7 @@ class StockInOrder(models.Model):
     
     # 关联采购单（采购入库）
     purchase_order = models.ForeignKey(
-        'logistics.PurchaseOrder', 
+        PurchaseOrder, 
         on_delete=models.CASCADE, 
         verbose_name='关联采购单', 
         null=True, 
@@ -122,7 +122,7 @@ class StockInOrder(models.Model):
     
     # 关联客户订单（退货入库）
     order_info = models.ForeignKey(
-        'shopper.OrderInfo', 
+        OrderInfos, 
         on_delete=models.CASCADE, 
         verbose_name='关联客户订单', 
         null=True, 

@@ -1,29 +1,24 @@
-```markdown
-# 项目运行指南
+# 项目编译与数据库迁移指南
 
-该项目由 Django 和 Vue 开发，`serve` 文件夹为后端，`web` 文件夹为前端。
+## 迁移数据库
 
-## 运行后端（Django）
+在 Django 项目的根目录下运行以下命令来迁移数据库。
 
-1. 进入 `serve` 文件夹：
-    ```bash
-    cd server
-    python manage.py runserver 8888
+```bash
+python server/manage.py makemigrations
+python server/manage.py migrate
+```
 
-    ```
+## 编译 Vue 项目
 
-## 运行前端（Vue）
+在 `web` 目录下运行以下命令来编译 Vue 项目。
 
-1. 进入 `web` 文件夹：
-    ```bash
-    cd web
-    npm install
-    npm config set registry https://registry.npmmirror.com
-    $env:NODE_OPTIONS="--openssl-legacy-provider"
-    npm run dev
-    
-    ```
+```bash
+cd web
+$env:NODE_OPTIONS="--openssl-legacy-provider"
+npm run dev
+```
 
-支付邮箱和密码：
-evhiak0409@sandbox.com
-111111
+```bash
+python server/manage.py runserver 8888
+```

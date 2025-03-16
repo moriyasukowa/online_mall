@@ -24,6 +24,10 @@ class PurchaseOrder(models.Model):
         default='pending'
     )
 
+    class Meta:
+        verbose_name = '采购单'
+        verbose_name_plural = '采购单'
+
 class OutboundOrder(models.Model):
     """出库单"""
     order_number = models.CharField('出库单号', max_length=50, unique=True)
@@ -39,6 +43,10 @@ class OutboundOrder(models.Model):
         verbose_name='关联订单'
     )
 
+    class Meta:
+        verbose_name = '出库单'
+        verbose_name_plural = '出库单'
+
 class OutboundOrderItem(models.Model):
     """中间表：记录出库单与订单的关联关系及拣选状态"""
     outbound_order = models.ForeignKey(OutboundOrder, on_delete=models.CASCADE)
@@ -46,6 +54,8 @@ class OutboundOrderItem(models.Model):
     is_picked = models.BooleanField('是否已拣选', default=False)  # 可扩展更多字段
     
     class Meta:
+        verbose_name = '中间表：出库单与订单关联关系'
+        verbose_name_plural = '中间表：出库单与订单关联关系'
         unique_together = [('outbound_order', 'order')]  # 防止重复关联
 
 class LogisticsOrder(models.Model):
@@ -93,6 +103,8 @@ class LogisticsOrder(models.Model):
             raise ValidationError("物流单不能同时关联采购单和客户订单")
 
     class Meta:
+        verbose_name = '物流单'
+        verbose_name_plural = '物流单'
         constraints = [
             models.CheckConstraint(
                 check=(

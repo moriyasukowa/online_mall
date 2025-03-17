@@ -14,3 +14,9 @@ class OrderInfosAdmin(admin.ModelAdmin):
     list_display = ['id', 'price', 'created', 'state', 'pay_id']
     list_filter = ['state']
     date_hierarchy = 'created'
+
+@admin.register(RefundInfos)
+class RefundInfosAdmin(admin.ModelAdmin):
+    list_display = ['id', 'created', 'state', 'order_id']
+    list_filter = ['state']
+    date_hierarchy = 'created'

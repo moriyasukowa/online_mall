@@ -61,6 +61,7 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
         return HttpResponseRedirect(
             reverse('admin:logistics_purchaseorder_change', args=[object_id])
         )
+
 @admin.register(OutboundOrder)
 class OutboundOrderAdmin(admin.ModelAdmin):
     list_display = ('order_number', 'commodity', 'quantity', 'created_by', 'created_at')

@@ -5,6 +5,8 @@ from shopper.models import User  # 假设用户模型在shopper应用中
 from shopper.models import OrderInfos  # 假设订单模型在shopper应用中
 from django.core.exceptions import ValidationError
 
+
+
 class PurchaseOrder(models.Model):
     """采购单"""
     order_number = models.CharField('采购单号', max_length=50, unique=True)
@@ -25,8 +27,8 @@ class PurchaseOrder(models.Model):
     )
 
     class Meta:
-        verbose_name = '采购单'
-        verbose_name_plural = '采购单'
+        verbose_name = '采购订单'
+        verbose_name_plural = '采购订单'
 
 class OutboundOrder(models.Model):
     """出库单"""
@@ -44,8 +46,8 @@ class OutboundOrder(models.Model):
     )
 
     class Meta:
-        verbose_name = '出库单'
-        verbose_name_plural = '出库单'
+        verbose_name = '出库'
+        verbose_name_plural = '出库'
 
 class OutboundOrderItem(models.Model):
     """中间表：记录出库单与订单的关联关系及拣选状态"""
@@ -103,8 +105,8 @@ class LogisticsOrder(models.Model):
             raise ValidationError("物流单不能同时关联采购单和客户订单")
 
     class Meta:
-        verbose_name = '物流单'
-        verbose_name_plural = '物流单'
+        verbose_name = '物流信息'
+        verbose_name_plural = '物流信息'
         constraints = [
             models.CheckConstraint(
                 check=(
@@ -149,8 +151,8 @@ class StockInOrder(models.Model):
             raise ValidationError("入库单不能同时关联采购单和客户订单")
 
     class Meta:
-        verbose_name = '入库单'
-        verbose_name_plural = '入库单'
+        verbose_name = '入库'
+        verbose_name_plural = '入库'
         constraints = [
             models.CheckConstraint(
                 check=(

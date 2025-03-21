@@ -8,11 +8,15 @@ from django.urls import path, reverse
 
 @admin.register(PurchaseOrder)
 class PurchaseOrderAdmin(admin.ModelAdmin):
+    # 添加以下两行
+    list_per_page = 20  # 每页显示数量
+    list_max_show_all = 200  # 显示全部数据的最大数量
+    date_hierarchy = 'created_at'  # 添加时间导航
+    preserve_filters = True  # 保持筛选状态
     list_display = ('order_number', 'commodity', 'quantity', 'status', 'created_by', 'created_at')
     list_filter = ('status',)
     actions = ['approve_selected_orders']
-
-    # 自定义批量批准动作
+    list_editable = ['commodity', 'quantity', 'status']  # 移除了created_by    
     def approve_selected_orders(self, request, queryset):
         invalid_orders = queryset.exclude(status='pending')
         if invalid_orders.exists():
@@ -32,7 +36,6 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
         )
     approve_selected_orders.short_description = "批准选中的采购单"
 
-    # 详情页按钮
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
         extra_context = extra_context or {}
         if object_id:
@@ -61,6 +64,9 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
         return HttpResponseRedirect(
             reverse('admin:logistics_purchaseorder_change', args=[object_id])
         )
+    
+    def order_number(self, obj):
+        return format_html('<a href="{}">{}</a>', reverse('admin:logistics_purchaseorder_change', args=[obj.pk]), obj.order_number)
 
 @admin.register(OutboundOrder)
 class OutboundOrderAdmin(admin.ModelAdmin):

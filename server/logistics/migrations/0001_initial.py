@@ -159,8 +159,8 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                "verbose_name": "入库单",
-                "verbose_name_plural": "入库单",
+                "verbose_name": "入库",
+                "verbose_name_plural": "入库",
             },
         ),
         migrations.CreateModel(

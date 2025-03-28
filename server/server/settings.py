@@ -11,9 +11,13 @@ SECRET_KEY = 'tq%piy+c3pntex*%)7m&1xoo1&1hb6cp2v42eyqaj)%f%jxc&5'
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
+# 关闭SimpleUI默认的广告和分析统计
+SIMPLEUI_HOME_INFO = False  # 关闭首页的快捷操作和向导
+# 隐藏默认的“最近动作”和“快捷操作”
 
 
 INSTALLED_APPS = [
+    'simpleui',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -24,7 +28,9 @@ INSTALLED_APPS = [
     'commodity',
     'shopper',
     'corsheaders',
-    'logistics'
+    'logistics',
+    'rangefilter',
+    'django_select2'
 ]
 
 MIDDLEWARE = [

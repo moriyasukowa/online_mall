@@ -1,16 +1,41 @@
 # logistics/serializers.py
 from rest_framework import serializers
 from .models import (
-    PurchaseOrder, 
+    ProcurementOrder, 
     OutboundOrder, 
     OutboundOrderItem, 
     LogisticsOrder, 
-    StockInOrder
+    StockInOrder,
+    ProcurementOrderItem
 )
-
+class ProcurementOrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProcurementOrderItem
+        fields = ('commodity', 'quantity')
+class ProcurementOrderSerializer(serializers.ModelSerializer):
+    items = ProcurementOrderItemSerializer(many=True)
+    class Meta:
+        model = ProcurementOrder
+        fields = ('order_number', 'supplier', 'status', 'items')
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        order = ProcurementOrder.objects.create(**validated_data)
+        for item_data in items_data:
+            ProcurementOrderItem.objects.create(order=order, **item_data)
+        return order
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items')
+        instance.supplier = validated_data.get('supplier', instance.supplier)
+        instance.status = validated_data.get('status', instance.status)
+        instance.save()
+        # 清除旧的订单项，重新添加
+        instance.items.all().delete()
+        for item_data in items_data:
+            ProcurementOrderItem.objects.create(order=instance, **item_data)
+        return instance
 class PurchaseOrderSerializer(serializers.ModelSerializer):
     class Meta:
-        model = PurchaseOrder
+        model = ProcurementOrder
         fields = '__all__'
 
 class OutboundOrderItemSerializer(serializers.ModelSerializer):

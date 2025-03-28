@@ -30,7 +30,8 @@ class CommodityInfos(models.Model):
     details = models.FileField('商品介绍', upload_to=r'details')
 
     def __str__(self):
-        return str(self.id)
+        # 显示名称、库存、规格的组合信息
+        return f"{self.name} (库存: {self.stock} | 规格: {self.sezes})"
 
     class Meta:
         verbose_name = '商品信息'

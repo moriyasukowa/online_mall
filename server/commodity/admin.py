@@ -1,5 +1,7 @@
 from django.contrib import admin
 from .models import *
+from django.http import JsonResponse
+from django.urls import path
 
 # admin.site.register(Types)
 # admin.site.register(CommodityInfos)
@@ -91,4 +93,36 @@ class CommodityInfosAdmin(admin.ModelAdmin):
         if db_field.name == 'types':
             db_field.choices = [(x['seconds'], x['seconds'])for x in Types.objects.values('seconds')]
         return super().formfield_for_dbfield(db_field, **kwargs)
+    def get_search_results(self, request, queryset, search_term):
+        # 扩展搜索功能
+        queryset, use_distinct = super().get_search_results(request, queryset, search_term)
+        return queryset, use_distinct
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('autocomplete/', self.admin_site.admin_view(self.autocomplete_view),
+                 name='commodity_autocomplete'),
+        ]
+        return custom_urls + urls
+    def autocomplete_view(self, request):
+        # 自定义返回数据结构
+        qs = self.get_queryset(request)
+        if request.GET.get('q'):
+            qs = qs.filter(name__icontains=request.GET['q'])
+        
+        results = [
+            {
+                "id": obj.id,
+                "name": obj.name,
+                "sezes": obj.sezes,
+                "stock": obj.stock,
+                "price": obj.price
+            } for obj in qs[:10]  # 限制显示数量
+        ]
+        
+        return JsonResponse({
+            "results": results,
+            "pagination": {"more": False}
+        })
 

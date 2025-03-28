@@ -6,12 +6,9 @@ from shopper.models import OrderInfos  # 假设订单模型在shopper应用中
 from django.core.exceptions import ValidationError
 
 
-
-class PurchaseOrder(models.Model):
-    """采购单"""
+class ProcurementOrder(models.Model):
+    """采购订单"""
     order_number = models.CharField('采购单号', max_length=50, unique=True)
-    commodity = models.ForeignKey(CommodityInfos, on_delete=models.CASCADE, verbose_name='商品')
-    quantity = models.IntegerField('采购数量')
     supplier = models.CharField('供应商', max_length=100)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='创建人')
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
@@ -29,6 +26,70 @@ class PurchaseOrder(models.Model):
     class Meta:
         verbose_name = '采购订单'
         verbose_name_plural = '采购订单'
+    
+    def __str__(self):
+        return f"订单号：{self.order_number}"
+
+    @property
+    def total_quantity(self):
+        """计算订单的总采购数量"""
+        return sum(item.quantity for item in self.items.all())
+
+    @property
+    def item_count(self):
+        """返回订单中商品的种类数"""
+        return self.items.count()
+
+class ProcurementOrderItem(models.Model):
+    """采购订单商品项"""
+    order = models.ForeignKey(
+        ProcurementOrder,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name='采购订单'
+    )
+    commodity = models.ForeignKey(
+        CommodityInfos,
+        on_delete=models.CASCADE,
+        verbose_name='商品'
+    )
+    quantity = models.PositiveIntegerField('采购数量')
+
+    class Meta:
+        verbose_name = '采购订单项'
+        verbose_name_plural = '采购订单项'
+
+    def __str__(self):
+        return f"{self.order.order_number} - {self.commodity.name} x{self.quantity}"
+
+
+class PurchaseOrder(models.Model):
+    """采购订单"""
+    order_number = models.CharField('采购单号', max_length=50, unique=True)
+    procurement_plan = models.ForeignKey(ProcurementOrder, on_delete=models.CASCADE, verbose_name='关联采购计划',null=True,blank=True)
+    commodity = models.ForeignKey(CommodityInfos, on_delete=models.CASCADE, verbose_name='商品')
+    quantity = models.IntegerField('计划采购数量')
+    actual_quantity = models.IntegerField('实际采购数量')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='创建人')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    supplier = models.CharField('供应商', max_length=100)
+
+    status = models.CharField(
+        '状态',
+        max_length=20,
+        choices=[
+            ('pending', '待执行'),
+            ('completed', '已完成'),
+        ],
+        default='pending'
+    )
+
+    class Meta:
+        verbose_name = '采购订单'
+        verbose_name_plural = '采购订单'
+
+    def __str__(self):
+        return f"采购订单 {self.order_number} - {self.procurement_plan.commodity.name}"
 
 class OutboundOrder(models.Model):
     """出库单"""

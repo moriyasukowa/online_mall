@@ -1,22 +1,94 @@
 from django.contrib import admin
-from .models import PurchaseOrder, OutboundOrder, OutboundOrderItem, LogisticsOrder, StockInOrder
+from django.forms import ValidationError
+from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, LogisticsOrder, StockInOrder, ProcurementOrderItem
 from django.contrib import admin
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
 from django.utils.html import format_html
 from django.contrib import messages
 from django.urls import path, reverse
+from django.utils import timezone
+from django.contrib.admin import DateFieldListFilter
+from rangefilter.filters import DateRangeFilter
 
-@admin.register(PurchaseOrder)
-class PurchaseOrderAdmin(admin.ModelAdmin):
-    # 添加以下两行
-    list_per_page = 20  # 每页显示数量
-    list_max_show_all = 200  # 显示全部数据的最大数量
-    date_hierarchy = 'created_at'  # 添加时间导航
-    preserve_filters = True  # 保持筛选状态
-    list_display = ('order_number', 'commodity', 'quantity', 'status', 'created_by', 'created_at')
-    list_filter = ('status',)
-    actions = ['approve_selected_orders']
-    list_editable = ['commodity', 'quantity', 'status']  # 移除了created_by    
+class ProcurementOrderItemInline(admin.TabularInline):
+    """采购订单项的内联"""
+    model = ProcurementOrderItem
+    extra = 1  # 显示额外的空行，用于快速添加商品
+    fields = ('commodity', 'quantity')  # 指定显示的字段
+    autocomplete_fields = ['commodity']  # 如果商品多，可以使用自动补全
+    min_num = 1  # 至少一个商品项
+    verbose_name = '订单商品项'
+    verbose_name_plural = '订单商品项'
+@admin.register(ProcurementOrder)
+class ProcurementOrderAdmin(admin.ModelAdmin):
+    """采购订单管理"""
+    # 基础列表显示配置
+    list_per_page = 20
+    list_max_show_all = 200
+    date_hierarchy = 'created_at'
+    preserve_filters = True
+    list_display = ('order_number', 'supplier', 'item_count', 'total_quantity', 'created_by', 'created_at', 'status')
+    list_filter = ('status','created_at')
+    search_fields = ('order_number', 'supplier')
+    list_editable = ('status',)
+    # 新增和编辑时的字段显示
+    fields = ('order_number', 'supplier', 'status', 'created_by')
+    # 内联商品项管理
+    inlines = [ProcurementOrderItemInline]
+    def item_count(self, obj):
+        """商品种类数（辅助列）"""
+        return obj.item_count
+    item_count.short_description = '商品种类数'
+    def total_quantity(self, obj):
+        """订单的总采购数量（辅助列）"""
+        return obj.total_quantity
+    total_quantity.short_description = '总采购数量'
+    
+    def get_readonly_fields(self, request, obj=None):
+        """动态设置只读字段"""
+        if obj:  # 编辑模式
+            return self.readonly_fields + ('order_number',)
+        return self.readonly_fields
+    def get_changeform_initial_data(self, request):
+        """设置新建表单的初始值"""
+        initial = super().get_changeform_initial_data(request)
+        initial.update({
+            'created_by': request.user,
+            'order_number': self.generate_initial_order_number(request)
+        })
+        return initial
+    def generate_initial_order_number(self, request):
+        """生成建议订单号（用户可覆盖）"""
+        today = timezone.now().date()
+        date_str = today.strftime('%Y%m%d')
+        
+        last_order = ProcurementOrder.objects.filter(
+            order_number__startswith=f'PPO-{date_str}-'
+        ).order_by('-order_number').first()
+        
+        if last_order:
+            last_num = int(last_order.order_number.split('-')[-1])
+            new_num = last_num + 1
+        else:
+            new_num = 1
+            
+        return f'PPO-{date_str}-{new_num:03d}'
+    def save_model(self, request, obj, form, change):
+        """保存时的处理逻辑"""
+        if not change:  # 新建时
+            # 自动填充创建人（确保安全）
+            obj.created_by = request.user
+            
+            # 处理订单号逻辑
+            if not obj.order_number:  # 用户未输入时使用自动生成
+                obj.order_number = self.generate_initial_order_number(request)
+            else:  # 用户自定义时进行格式验证
+                if not obj.order_number.startswith('PPO-'):
+                    raise ValidationError("订单号必须以PPO-开头")
+        
+        super().save_model(request, obj, form, change)
+
+        
     def approve_selected_orders(self, request, queryset):
         invalid_orders = queryset.exclude(status='pending')
         if invalid_orders.exists():
@@ -54,7 +126,7 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def approve_single_order(self, request, object_id):
-        purchase_order = PurchaseOrder.objects.get(id=object_id)
+        purchase_order = ProcurementOrder.objects.get(id=object_id)
         if purchase_order.status == 'pending':
             purchase_order.status = 'approved'
             purchase_order.save()
@@ -64,9 +136,97 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
         return HttpResponseRedirect(
             reverse('admin:logistics_purchaseorder_change', args=[object_id])
         )
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'get-plan-details/<int:plan_id>/',
+                self.admin_site.admin_view(self.get_plan_details),
+                name='get_plan_details'
+            ),
+        ]
+        return custom_urls + urls
+
+    def get_plan_details(self, request, plan_id):
+        """获取采购计划详情的API"""
+        try:
+            plan = ProcurementOrder.objects.select_related('commodity', 'company').get(id=plan_id)
+            data = {
+                'commodity': {
+                    'id': plan.commodity.id,
+                    'text': str(plan.commodity),
+                    'stock': plan.commodity.stock
+                },
+                'company': plan.company.id,
+                'planned_quantity': plan.planned_quantity,
+                'default_quantity': min(plan.planned_quantity, plan.commodity.stock)
+            }
+            return JsonResponse(data)
+        except ProcurementOrder.DoesNotExist:
+            return JsonResponse({'error': '采购计划不存在'}, status=404)
+
+@admin.register(PurchaseOrder)
+class PurchaseOrderAdmin(admin.ModelAdmin):
+    class Media:
+        js = ('server\logistics\html\order.js',)
+    list_per_page = 10
+    list_max_show_all = 200
+    preserve_filters = True
+    autocomplete_fields = ['commodity']
+    list_display = ('order_number', 'commodity','quantity', 'actual_quantity',  'created_by')
+    list_filter = (('created_at', DateRangeFilter),)
+    actions = ['approve_selected_orders']
+    list_editable = ['commodity', 'actual_quantity']
+    # 新增字段配置
+    fieldsets = (
+        ('基本信息', {
+            'fields': ('order_number', 'commodity', 'created_by', 'supplier')
+        }),
+        ('计划', {
+            'fields': ('status', 'procurement_plan', 'quantity', 'actual_quantity')
+        }),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        """动态设置只读字段"""
+        if obj:  # 编辑模式
+            return self.readonly_fields + ('order_number',)
+        return self.readonly_fields
+
+    def get_changeform_initial_data(self, request):
+        """设置新建表单的初始值"""
+        initial = super().get_changeform_initial_data(request)
+        initial.update({
+            'created_by': request.user,
+            'order_number': self.generate_initial_order_number(request)
+        })
+        return initial
     
-    def order_number(self, obj):
-        return format_html('<a href="{}">{}</a>', reverse('admin:logistics_purchaseorder_change', args=[obj.pk]), obj.order_number)
+    def generate_initial_order_number(self, request):
+        """生成建议订单号（用户可覆盖）"""
+        today = timezone.now().date()
+        date_str = today.strftime('%Y%m%d')
+        
+        last_order = ProcurementOrder.objects.filter(
+            order_number__startswith=f'PO-{date_str}-'
+        ).order_by('-order_number').first()
+        
+        if last_order:
+            last_num = int(last_order.order_number.split('-')[-1])
+            new_num = last_num + 1
+        else:
+            new_num = 1
+            
+        return f'PO-{date_str}-{new_num:03d}'
+    def save_model(self, request, obj, form, change):
+    # 添加保存时的验证
+        if obj.procurement_plan:
+            if obj.commodity != obj.procurement_plan.commodity:
+                raise ValidationError("商品必须与采购计划一致")
+            if obj.quantity > obj.procurement_plan.planned_quantity:
+                raise ValidationError("采购数量不能超过计划数量")
+        super().save_model(request, obj, form, change)
+    
 
 @admin.register(OutboundOrder)
 class OutboundOrderAdmin(admin.ModelAdmin):
@@ -75,12 +235,6 @@ class OutboundOrderAdmin(admin.ModelAdmin):
     list_filter = ('created_at',)
     ordering = ('-created_at',)
 
-@admin.register(OutboundOrderItem)
-class OutboundOrderItemAdmin(admin.ModelAdmin):
-    list_display = ('outbound_order', 'order', 'is_picked')
-    search_fields = ('outbound_order__order_number', 'order__order_number')
-    list_filter = ('is_picked',)
-    ordering = ('-outbound_order__created_at',)
 
 @admin.register(LogisticsOrder)
 class LogisticsOrderAdmin(admin.ModelAdmin):

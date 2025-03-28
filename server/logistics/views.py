@@ -4,15 +4,20 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import PurchaseOrder, StockInOrder
+from .models import ProcurementOrder, StockInOrder
 from .serializers import PurchaseOrderSerializer
 from .models import OutboundOrder, OutboundOrderItem
-from .serializers import OutboundOrderSerializer, OutboundOrderItemSerializer
+from .serializers import OutboundOrderSerializer, OutboundOrderItemSerializer, ProcurementOrderSerializer
 from .models import LogisticsOrder
 from .serializers import LogisticsOrderSerializer
 
+class ProcurementOrderViewSet(viewsets.ModelViewSet):
+    queryset = ProcurementOrder.objects.prefetch_related('items').all()
+    serializer_class = ProcurementOrderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
-    queryset = PurchaseOrder.objects.all()
+    queryset = ProcurementOrder.objects.all()
     serializer_class = PurchaseOrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 

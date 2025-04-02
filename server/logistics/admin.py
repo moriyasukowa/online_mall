@@ -10,18 +10,36 @@ from django.utils import timezone
 from django.contrib.admin import DateFieldListFilter
 from rangefilter.filters import DateRangeFilter
 
+
 class ProcurementOrderItemInline(admin.TabularInline):
-    """采购订单项的内联"""
     model = ProcurementOrderItem
-    extra = 1  # 显示额外的空行，用于快速添加商品
-    fields = ('commodity', 'quantity')  # 指定显示的字段
-    autocomplete_fields = ['commodity']  # 如果商品多，可以使用自动补全
-    min_num = 1  # 至少一个商品项
+    extra = 1
+    fields = ('commodity', 'unit_price', 'quantity')
+    autocomplete_fields = ['commodity']
+    min_num = 1
     verbose_name = '订单商品项'
     verbose_name_plural = '订单商品项'
+    class Media:
+        css = {
+            'all': (
+                'admin/css/vendor/select2/select2.css',
+                'logistics/css/select2-table.css',
+            )
+        }
+        js = (
+            'admin/js/vendor/select2/select2.full.min.js',  # 仅保留一个 Select2
+            'logistics/js/autocomplete.js',  # 你的自定义脚本
+        )
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        # 添加price到表单字段
+        formset.form.base_fields['commodity'].widget.attrs['data-price-field'] = 'price'
+        return formset
+    
 @admin.register(ProcurementOrder)
 class ProcurementOrderAdmin(admin.ModelAdmin):
-    """采购订单管理"""
+    class Media:
+        css = {'all': ('/static/logistics/css/custom_inline.css',)}  # 使用正斜杠
     # 基础列表显示配置
     list_per_page = 20
     list_max_show_all = 200
@@ -32,7 +50,7 @@ class ProcurementOrderAdmin(admin.ModelAdmin):
     search_fields = ('order_number', 'supplier')
     list_editable = ('status',)
     # 新增和编辑时的字段显示
-    fields = ('order_number', 'supplier', 'status', 'created_by')
+    fields = ('order_number', 'supplier',  'created_by', 'due_date')
     # 内联商品项管理
     inlines = [ProcurementOrderItemInline]
     def item_count(self, obj):

@@ -4,7 +4,14 @@ from commodity.models import CommodityInfos  # 假设商品模型在commodity应
 from shopper.models import User  # 假设用户模型在shopper应用中
 from shopper.models import OrderInfos  # 假设订单模型在shopper应用中
 from django.core.exceptions import ValidationError
+from django.utils import timezone  # 导入 timezone
+from datetime import timedelta    # 导入 timedelta
 
+
+# 定义一个函数来计算默认的到期日期
+def get_default_due_date():
+  """返回当前时间加上3天"""
+  return timezone.now() + timedelta(days=7)
 
 class ProcurementOrder(models.Model):
     """采购订单"""
@@ -12,6 +19,10 @@ class ProcurementOrder(models.Model):
     supplier = models.CharField('供应商', max_length=100)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='创建人')
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    due_date = models.DateTimeField(
+            '计划完成日期',
+            default=get_default_due_date  # 使用上面定义的函数作为默认值
+        )    
     status = models.CharField(
         '状态',
         max_length=20,
@@ -24,8 +35,8 @@ class ProcurementOrder(models.Model):
     )
 
     class Meta:
-        verbose_name = '采购订单'
-        verbose_name_plural = '采购订单'
+        verbose_name = '采购计划'
+        verbose_name_plural = '采购计划'
     
     def __str__(self):
         return f"订单号：{self.order_number}"
@@ -53,6 +64,7 @@ class ProcurementOrderItem(models.Model):
         on_delete=models.CASCADE,
         verbose_name='商品'
     )
+    unit_price = models.DecimalField(verbose_name='采购单价', max_digits=10, decimal_places=2)
     quantity = models.PositiveIntegerField('采购数量')
 
     class Meta:

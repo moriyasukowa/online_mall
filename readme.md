@@ -22,3 +22,14 @@ npm run dev
 ```bash
 python server/manage.py runserver 8888
 ```
+
+## 上传到 GitHub
+
+在项目根目录下运行以下命令将代码上传到 GitHub：
+
+```bash
+git add .
+git commit -m "4-2解决冲突"
+git push -u origin main
+```
+

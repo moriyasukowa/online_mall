@@ -106,23 +106,29 @@ class CommodityInfosAdmin(admin.ModelAdmin):
         ]
         return custom_urls + urls
     def autocomplete_view(self, request):
-        # 自定义返回数据结构
         qs = self.get_queryset(request)
         if request.GET.get('q'):
-            qs = qs.filter(name__icontains=request.GET['q'])
+            qs = qs.filter(
+                models.Q(name__icontains=request.GET['q']) |
+                models.Q(sezes__icontains=request.GET['q']) |
+                models.Q(types__icontains=request.GET['q'])
+            )
         
-        results = [
-            {
-                "id": obj.id,
-                "name": obj.name,
-                "sezes": obj.sezes,
-                "stock": obj.stock,
-                "price": obj.price
-            } for obj in qs[:10]  # 限制显示数量
-        ]
+        results = [{
+            "id": obj.id,
+            "text": f"{obj.name} ({obj.sezes})",  # Select2 默认显示的文本
+            # 额外字段用于表格渲染
+            "name": obj.name,
+            "sezes": obj.sezes,
+            "types": obj.types,
+            "price": f"¥{obj.price}",
+            "stock": obj.stock,
+            "inventory": obj.inventory,
+            "img": obj.img.url if obj.img else ""
+        } for obj in qs[:20]]  # 增加返回数量
         
         return JsonResponse({
             "results": results,
-            "pagination": {"more": False}
+            "pagination": {"more": len(results) == 20}
         })
 

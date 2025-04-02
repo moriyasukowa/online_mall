@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'tq%piy+c3pntex*%)7m&1xoo1&1hb6cp2v42eyqaj)%f%jxc&5'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*']
 # 关闭SimpleUI默认的广告和分析统计
@@ -29,8 +29,8 @@ INSTALLED_APPS = [
     'shopper',
     'corsheaders',
     'logistics',
-    'rangefilter',
-    'django_select2'
+    'django_select2',
+    'select2',
 ]
 
 MIDDLEWARE = [
@@ -105,12 +105,20 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
-
+import os
 
 STATIC_URL = '/static/'
+# 开发环境静态文件目录
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),  # 指向你的实际路径：C:\...\server\static
+]
+# 生产环境收集目录（保持原样）
+STATIC_ROOT = os.path.join(BASE_DIR, '\static_root')
+
+
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-STATIC_ROOT = BASE_DIR / 'static'
+MEDIA_ROOT = os.path.join(BASE_DIR, '\media')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {

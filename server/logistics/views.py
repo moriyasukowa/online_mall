@@ -42,6 +42,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         stock_in_order = StockInOrder.objects.create(
             stock_in_number=f"STOCKIN-{purchase_order.order_number}",
             created_by=request.user,
+    
             quantity=purchase_order.quantity,
             purchase_order=purchase_order,
             notes="采购入库"

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.forms import ValidationError
-from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, LogisticsOrder, StockInOrder, ProcurementOrderItem
+from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, LogisticsOrder, PurchaseOrderItem, StockInOrder, ProcurementOrderItem
 from django.contrib import admin
 from django.http import HttpResponseRedirect, JsonResponse
 from django.utils.html import format_html
@@ -16,6 +16,7 @@ class ProcurementOrderItemInline(admin.TabularInline):
     extra = 1
     fields = ('commodity', 'unit_price', 'quantity')
     autocomplete_fields = ['commodity']
+    search_fields = ['commodity']
     min_num = 1
     verbose_name = '订单商品项'
     verbose_name_plural = '订单商品项'
@@ -23,18 +24,22 @@ class ProcurementOrderItemInline(admin.TabularInline):
         css = {
             'all': (
                 'admin/css/vendor/select2/select2.css',
-                'logistics/css/select2-table.css',
+                'admin/css/vendor/select2/select2.min.css',
             )
         }
         js = (
-            'admin/js/vendor/select2/select2.full.min.js',  # 仅保留一个 Select2
-            'logistics/js/autocomplete.js',  # 你的自定义脚本
+            'admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+            'logistics/js/autocomplete2.js',
         )
     def get_formset(self, request, obj=None, **kwargs):
         formset = super().get_formset(request, obj, **kwargs)
-        # 添加price到表单字段
-        formset.form.base_fields['commodity'].widget.attrs['data-price-field'] = 'price'
+        formset.form.base_fields['commodity'].widget.can_add_related = False
+        formset.form.base_fields['commodity'].widget.can_change_related = False
         return formset
+
+
     
 @admin.register(ProcurementOrder)
 class ProcurementOrderAdmin(admin.ModelAdmin):
@@ -61,6 +66,7 @@ class ProcurementOrderAdmin(admin.ModelAdmin):
         """订单的总采购数量（辅助列）"""
         return obj.total_quantity
     total_quantity.short_description = '总采购数量'
+    
     
     def get_readonly_fields(self, request, obj=None):
         """动态设置只读字段"""
@@ -183,28 +189,62 @@ class ProcurementOrderAdmin(admin.ModelAdmin):
         except ProcurementOrder.DoesNotExist:
             return JsonResponse({'error': '采购计划不存在'}, status=404)
 
+class PurchaseOrderItemInline(admin.TabularInline):
+    model = PurchaseOrderItem
+    extra = 1
+    fields = ('commodity', 'unit_price', 'quantity_plan', 'quantity_actual')
+    autocomplete_fields = ['commodity']
+    search_fields = ['commodity']
+    min_num = 1
+    verbose_name = '订单商品项'
+    verbose_name_plural = '订单商品项'
+    class Media:
+        css = {
+            'all': (
+                'admin/css/vendor/select2/select2.css',
+                'admin/css/vendor/select2/select2.min.css',
+            )
+        }
+        js = (
+            'admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+            'logistics/js/autocomplete2.js',
+        )
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        formset.form.base_fields['commodity'].widget.can_add_related = False
+        formset.form.base_fields['commodity'].widget.can_change_related = False
+        return formset
+
+
 @admin.register(PurchaseOrder)
 class PurchaseOrderAdmin(admin.ModelAdmin):
     class Media:
-        js = ('server\logistics\html\order.js',)
+        css = {'all': ('logistics/css/custom_inline1.css',)}  # 使用正斜杠
+    # 基础列表显示配置
     list_per_page = 10
     list_max_show_all = 200
     preserve_filters = True
-    autocomplete_fields = ['commodity']
-    list_display = ('order_number', 'commodity','quantity', 'actual_quantity',  'created_by')
     list_filter = (('created_at', DateRangeFilter),)
-    actions = ['approve_selected_orders']
-    list_editable = ['commodity', 'actual_quantity']
-    # 新增字段配置
-    fieldsets = (
-        ('基本信息', {
-            'fields': ('order_number', 'commodity', 'created_by', 'supplier')
-        }),
-        ('计划', {
-            'fields': ('status', 'procurement_plan', 'quantity', 'actual_quantity')
-        }),
-    )
+    date_hierarchy = 'created_at'
+    list_display = ('order_number', 'supplier', 'item_count', 'total_quantity', 'created_by', 'created_at', 'status','due_date')
+    search_fields = ('order_number', 'supplier')
+    list_editable = ('status','due_date')
+    # 新增和编辑时的字段显示
+    fields = ('order_number','procurement_plan', 'supplier',  'created_by', 'due_date')
+    autocomplete_fields = ['procurement_plan']
+    # 内联商品项管理
+    inlines = [PurchaseOrderItemInline]
 
+    def item_count(self, obj):
+        """商品种类数（辅助列）"""
+        return obj.item_count
+    item_count.short_description = '商品种类数'
+    def total_quantity(self, obj):
+        """订单的总采购数量（辅助列）"""
+        return obj.total_quantity
+    total_quantity.short_description = '总采购数量'
     def get_readonly_fields(self, request, obj=None):
         """动态设置只读字段"""
         if obj:  # 编辑模式
@@ -236,15 +276,7 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
             new_num = 1
             
         return f'PO-{date_str}-{new_num:03d}'
-    def save_model(self, request, obj, form, change):
-    # 添加保存时的验证
-        if obj.procurement_plan:
-            if obj.commodity != obj.procurement_plan.commodity:
-                raise ValidationError("商品必须与采购计划一致")
-            if obj.quantity > obj.procurement_plan.planned_quantity:
-                raise ValidationError("采购数量不能超过计划数量")
-        super().save_model(request, obj, form, change)
-    
+
 
 @admin.register(OutboundOrder)
 class OutboundOrderAdmin(admin.ModelAdmin):

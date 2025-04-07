@@ -43,15 +43,6 @@ class CommodityInfosAdmin(admin.ModelAdmin):
         }),
     )
 
-    # 将下拉框改为单选按钮
-    # admin.HORIZONTAL是水平排列
-    # admin.VERTICAL是垂直排列
-    # radio_fields = {'types': admin.HORIZONTAL}
-
-    # 在数据新增页或数据修改页设置可读的字段，不可编辑
-    # readonly_fields = ['sold',]
-
-    # 设置排序方式，['id']为升序，降序为['-id']
     ordering = ['id']
 
     # 设置数据列表页的每列数据是否可排序显示
@@ -61,42 +52,40 @@ class CommodityInfosAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'sezes', 'types', 'price', 'discount','img','details','inventory']
     list_display.append('colored_name')
 
-    # 为数据列表页的字段id和name设置路由地址，该路由地址可进入数据修改页
-    # list_display_links = ['id', 'name']
-
-    # 设置过滤器，若有外键，则应使用双下画线连接两个模型的字段
     list_filter = ['types']
 
     # 在数据列表页设置每一页显示的数据量
     list_per_page = 100
 
-    # 在数据列表页设置每一页显示最大上限的数据量
     list_max_show_all = 200
 
-    # 为数据列表页的字段name设置编辑状态
     list_editable = ['name','sezes','types','price','discount','img','details']
 
-    # 设置可搜索的字段
     search_fields = ['name', 'types']
 
-    # 在数据列表页设置日期选择器
     date_hierarchy = 'created'
 
-    # 在数据修改页添加“另存为”功能
     save_as = True
-
-    # 设置“动作”栏的位置
-    # actions_on_top = False
-    # actions_on_bottom = True
 
     def formfield_for_dbfield(self, db_field, **kwargs):
         if db_field.name == 'types':
             db_field.choices = [(x['seconds'], x['seconds'])for x in Types.objects.values('seconds')]
         return super().formfield_for_dbfield(db_field, **kwargs)
     def get_search_results(self, request, queryset, search_term):
-        # 扩展搜索功能
+        """
+        用于 Select2 dropdown 的搜索逻辑 (Django 默认调用)。
+        确保返回的数据格式满足 Select2 基本要求 (id, text)。
+        """
         queryset, use_distinct = super().get_search_results(request, queryset, search_term)
+        # 如果存在 search_term，应用自定义过滤逻辑
+        if search_term:
+             queryset = queryset.filter(
+                 models.Q(name__icontains=search_term) |
+                 models.Q(sezes__icontains=search_term) |
+                 models.Q(types__icontains=search_term)
+             )
         return queryset, use_distinct
+
     
     def get_urls(self):
         urls = super().get_urls()
@@ -104,31 +93,48 @@ class CommodityInfosAdmin(admin.ModelAdmin):
             path('autocomplete/', self.admin_site.admin_view(self.autocomplete_view),
                  name='commodity_autocomplete'),
         ]
+        print(custom_urls + urls)
         return custom_urls + urls
-    def autocomplete_view(self, request):
-        qs = self.get_queryset(request)
-        if request.GET.get('q'):
-            qs = qs.filter(
-                models.Q(name__icontains=request.GET['q']) |
-                models.Q(sezes__icontains=request.GET['q']) |
-                models.Q(types__icontains=request.GET['q'])
-            )
-        
-        results = [{
-            "id": obj.id,
-            "text": f"{obj.name} ({obj.sezes})",  # Select2 默认显示的文本
-            # 额外字段用于表格渲染
-            "name": obj.name,
-            "sezes": obj.sezes,
-            "types": obj.types,
-            "price": f"¥{obj.price}",
-            "stock": obj.stock,
-            "inventory": obj.inventory,
-            "img": obj.img.url if obj.img else ""
-        } for obj in qs[:20]]  # 增加返回数量
-        
-        return JsonResponse({
-            "results": results,
-            "pagination": {"more": len(results) == 20}
-        })
 
+    def autocomplete_view(self, request):
+        """
+        处理 Select2 的 AJAX 请求。
+        支持 'term' (用于搜索) 和 'id' (用于获取单个项的详细信息)。
+        """
+        results = []
+        term = request.GET.get('term')
+        item_id = request.GET.get('id') # 新增：处理根据 ID 获取详情的请求
+        qs = self.get_queryset(request)
+        if item_id:
+            # 如果请求指定了 ID，只查找这个 ID 的商品
+            qs = qs.filter(pk=item_id)
+        elif term:
+            # 否则，使用 term 进行搜索
+            search_fields = self.get_search_fields(request)
+            if search_fields and term:
+                search_q = models.Q()
+                for field in search_fields:
+                    search_q |= models.Q(**{f'{field}__icontains': term})
+                qs = qs.filter(search_q)
+        else:
+            # 如果既没有 term 也没有 id，可以返回空或前几个作为默认
+            qs = qs[:20] # 限制数量
+        for obj in qs:
+            results.append({
+                "id": obj.id,
+                # Select2 dropdown 显示的文本 (保持简洁)
+                "text": f"{obj.name} (规格: {obj.sezes} | 库存: {obj.stock})",
+                # --- 额外数据 ---
+                "name": obj.name,
+                "sezes": obj.sezes,
+                "types": obj.types,
+                # 返回格式化的价格用于显示 (如果需要), 和原始价格用于计算
+                "price_display": f"¥{obj.price:.2f}",
+                "price_raw": obj.price, # **关键：返回原始数字价格**
+                "stock": obj.stock,
+                "inventory": obj.inventory, # 你模型中的字段
+                "img": obj.img.url if obj.img else ""
+            })
+        # Select2 需要 'results' 键
+        # Django autocomplete 通常不需要 pagination key，但 Select2 Ajax 可以用
+        return JsonResponse({"results": results})

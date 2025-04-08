@@ -220,8 +220,21 @@ class PurchaseOrderItemInline(admin.TabularInline):
 
 @admin.register(PurchaseOrder)
 class PurchaseOrderAdmin(admin.ModelAdmin):
+
     class Media:
-        css = {'all': ('logistics/css/custom_inline1.css',)}  # 使用正斜杠
+        css = {
+            'all': (
+                'logistics/css/custom_inline1.css',
+                'admin/css/vendor/select2/select2.css',
+                'admin/css/vendor/select2/select2.min.css',
+            )
+        }
+        js = (
+            'admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+            'logistics/js/autocomplete_order.js',
+        )
     # 基础列表显示配置
     list_per_page = 10
     list_max_show_all = 200

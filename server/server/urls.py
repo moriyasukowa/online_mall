@@ -4,6 +4,7 @@ from django.views.static import serve
 from django.conf import settings
 from commodity.models import CommodityInfos
 from django.http import JsonResponse
+from logistics.urls import get_procurement_plan
 def get_commodity_price(request):
     commodity_id = request.GET.get('commodity_id')
     try:
@@ -23,5 +24,6 @@ urlpatterns = [
     # 定义静态资源的路由信息
     re_path('static/(?P<path>.*)', serve, {'document_root': settings.STATIC_ROOT}, name='static'),
     path('commodity/get_commodity_price/', get_commodity_price, name='get_commodity_price'),
+    path('logistics/get_procurement_plan/', get_procurement_plan, name='get_procurement_plan'),
 ]
 

@@ -103,17 +103,19 @@ class PurchaseOrder(models.Model):
         verbose_name_plural = '采购订单'
 
     def __str__(self):
-        return f"采购订单 {self.order_number} - {self.procurement_plan.commodity.name}"
+        return f"订单号：{self.order_number}"
     
     @property
     def total_quantity(self):
         """计算订单的总采购数量"""
-        return sum(item.quantity for item in self.items.all())
+        return sum(item.quantity_actual for item in self.items.all())
 
     @property
     def item_count(self):
         """返回订单中商品的种类数"""
         return self.items.count()
+    
+    
 
 class PurchaseOrderItem(models.Model):
     """采购订单商品项"""
@@ -137,7 +139,7 @@ class PurchaseOrderItem(models.Model):
         verbose_name_plural = '采购订单项'
 
     def __str__(self):
-        return f"{self.order.order_number} - {self.commodity.name} x{self.quantity}"
+        return f"{self.order.order_number} - {self.commodity.name} x{self.quantity_actual}"
 
 class OutboundOrder(models.Model):
     """出库单"""

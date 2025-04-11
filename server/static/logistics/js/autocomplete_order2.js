@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // 填充采购项
     function fillProcurementItems(items) {
         items.forEach((item, index) => {
-            if (index > 2) {
+            if (index > 0) {
                 // 点击添加按钮创建新行
                 $('.add-row a').click();
             }
@@ -62,10 +62,10 @@ document.addEventListener('DOMContentLoaded', function () {
             setTimeout(() => {
                 const rows = $('.dynamic-items');
                 const currentRow = rows.eq(index);
-                
+                console.log(index, currentRow);
                 // 设置商品 - Select2 方式
                 const commoditySelect = currentRow.find('select[id$="-commodity"]');
-                const newOption = new Option(String(item.commodity_id), item.commodity_id, true, true);
+                const newOption = new Option(String(item.name), item.commodity_id, true, true);
                 commoditySelect.append(newOption).trigger('change');
                     
                 // 设置数量

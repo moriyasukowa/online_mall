@@ -49,6 +49,7 @@ def get_procurement_plan(request):
             'items': [
                 {
                     'commodity_id': item.commodity.id,
+                    'name' : str(item.commodity) if item.commodity else None,
                     'unit_price': float(item.unit_price) if item.unit_price else 0,
                     'quantity': item.quantity
                 }

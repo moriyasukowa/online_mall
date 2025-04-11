@@ -161,6 +161,8 @@ CORS_ALLOW_HEADERS = (
     'x-csrftoken',
     'x-requested-with',
 )
+USE_TZ = False
+TIME_ZONE = 'Asia/Shanghai'
 
 # settings.py
 ALIPAY_CONFIG = {

@@ -89,7 +89,7 @@ class ProcurementOrderAdmin(admin.ModelAdmin):
         last_order = ProcurementOrder.objects.filter(
             order_number__startswith=f'PPO-{date_str}-'
         ).order_by('-order_number').first()
-        
+
         if last_order:
             last_num = int(last_order.order_number.split('-')[-1])
             new_num = last_num + 1
@@ -97,6 +97,7 @@ class ProcurementOrderAdmin(admin.ModelAdmin):
             new_num = 1
             
         return f'PPO-{date_str}-{new_num:03d}'
+    
     def save_model(self, request, obj, form, change):
         """保存时的处理逻辑"""
         if not change:  # 新建时
@@ -191,7 +192,7 @@ class ProcurementOrderAdmin(admin.ModelAdmin):
 
 class PurchaseOrderItemInline(admin.TabularInline):
     model = PurchaseOrderItem
-    extra = 1
+    extra = 0
     fields = ('commodity', 'unit_price', 'quantity_plan', 'quantity_actual')
     autocomplete_fields = ['commodity']
     search_fields = ['commodity']
@@ -233,7 +234,7 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
             'admin/js/vendor/jquery/jquery.js',
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
-            'logistics/js/autocomplete_order.js',
+            'logistics/js/autocomplete_order2.js',
         )
     # 基础列表显示配置
     list_per_page = 10
@@ -278,7 +279,7 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
         today = timezone.now().date()
         date_str = today.strftime('%Y%m%d')
         
-        last_order = ProcurementOrder.objects.filter(
+        last_order = PurchaseOrder.objects.filter(
             order_number__startswith=f'PO-{date_str}-'
         ).order_by('-order_number').first()
         
@@ -297,6 +298,32 @@ class OutboundOrderAdmin(admin.ModelAdmin):
     search_fields = ('order_number', 'commodity__name')
     list_filter = ('created_at',)
     ordering = ('-created_at',)
+
+    def get_changeform_initial_data(self, request):
+        """设置新建表单的初始值"""
+        initial = super().get_changeform_initial_data(request)
+        initial.update({
+            'created_by': request.user,
+            'order_number': self.generate_initial_order_number(request)
+        })
+        return initial
+    
+    def generate_initial_order_number(self, request):
+        """生成建议订单号（用户可覆盖）"""
+        today = timezone.now().date()
+        date_str = today.strftime('%Y%m%d')
+        
+        last_order = OutboundOrder.objects.filter(
+            order_number__startswith=f'OB-{date_str}-'
+        ).order_by('-order_number').first()
+        
+        if last_order:
+            last_num = int(last_order.order_number.split('-')[-1])
+            new_num = last_num + 1
+        else:
+            new_num = 1
+            
+        return f'OB-{date_str}-{new_num:03d}'
 
 
 @admin.register(LogisticsOrder)

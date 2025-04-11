@@ -29,7 +29,7 @@ python server/manage.py runserver 8888
 
 ```bash
 git add .
-git commit -m "完成价格自动填充的功能"
+git commit -m "4.11上课前更新代码库"
 git push -u origin main
 ```
 

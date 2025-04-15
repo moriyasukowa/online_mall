@@ -1,0 +1,60 @@
+/* Styling for the Select2 dropdown results to look like a table */
+
+/* Container for each row */
+.select2-result-commodity-row {
+    display: flex; /* Use Flexbox for layout */
+    align-items: center; /* Vertically align items if they have different heights */
+    padding: 5px 8px;   /* Add some padding */
+    border-bottom: 1px solid #eee; /* Separator line */
+}
+.select2-results__option--highlighted .select2-result-commodity-row {
+    background-color: #5897fb; /* Style highlighted option */
+    color: white;
+    border-bottom-color: #4c8efb; /* Adjust border color on hover */
+}
+.select2-results__option:last-child .select2-result-commodity-row {
+   border-bottom: none; /* No border for the last item */
+}
+
+
+/* Individual "columns" */
+.select2-result-commodity__name {
+    flex: 2 1 0%; /* Allow name to take up more space (grow=2, shrink=1, basis=0) */
+    padding-right: 10px;
+    overflow: hidden; /* Hide overflow */
+    white-space: nowrap; /* Prevent wrapping */
+    text-overflow: ellipsis; /* Add '...' for long names */
+}
+
+.select2-result-commodity__stock {
+    flex: 0 0 70px; /* Fixed width for stock (grow=0, shrink=0, basis=70px) */
+    text-align: right; /* Right-align numbers */
+    padding-right: 10px;
+}
+
+.select2-result-commodity__sezes {
+    flex: 1 1 0%; /* Allow specs to take remaining space */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Optional: Style the header row */
+.select2-results__header {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    font-weight: bold;
+    background-color: #f5f5f5; /* Light grey background */
+    border-bottom: 1px solid #ddd;
+    color: #333;
+}
+/* Apply the same flex properties to header columns as data columns */
+.select2-results__header .select2-result-commodity__name { flex: 2 1 0%; }
+.select2-results__header .select2-result-commodity__stock { flex: 0 0 70px; }
+.select2-results__header .select2-result-commodity__sezes { flex: 1 1 0%; }
+
+/* Optional: Make the whole dropdown wider */
+.select2-dropdown.commodity-table-dropdown {
+    min-width: 500px !important; /* Adjust width as needed */
+}

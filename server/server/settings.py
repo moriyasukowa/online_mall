@@ -163,6 +163,7 @@ CORS_ALLOW_HEADERS = (
 )
 USE_TZ = False
 TIME_ZONE = 'Asia/Shanghai'
+LANGUAGE_CODE = 'zh-hans'
 
 # settings.py
 ALIPAY_CONFIG = {

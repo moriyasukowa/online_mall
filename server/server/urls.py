@@ -26,4 +26,3 @@ urlpatterns = [
     path('commodity/get_commodity_price/', get_commodity_price, name='get_commodity_price'),
     path('logistics/get_procurement_plan/', get_procurement_plan, name='get_procurement_plan'),
 ]
-

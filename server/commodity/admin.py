@@ -86,14 +86,17 @@ class CommodityInfosAdmin(admin.ModelAdmin):
              )
         return queryset, use_distinct
 
-    
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path('autocomplete/', self.admin_site.admin_view(self.autocomplete_view),
-                 name='commodity_autocomplete'),
+            path(
+                'autocomplete/',
+                self.admin_site.admin_view(self.autocomplete_view),
+                # *** 非常重要：给你的自定义 URL 命名 ***
+                name='commodity_autocomplete'
+            ),
         ]
-        print(custom_urls + urls)
+        print(custom_urls + urls) # 可以保留用于调试
         return custom_urls + urls
 
     def autocomplete_view(self, request):

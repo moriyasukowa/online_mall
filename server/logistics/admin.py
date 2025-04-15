@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.forms import ValidationError
+from django.shortcuts import redirect
 from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, LogisticsOrder, PurchaseOrderItem, StockInOrder, ProcurementOrderItem
 from django.contrib import admin
 from django.http import HttpResponseRedirect, JsonResponse
@@ -9,7 +10,7 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.contrib.admin import DateFieldListFilter
 from rangefilter.filters import DateRangeFilter
-
+from logistics.form import PurchaseOrderItemInlineFormSet
 
 class ProcurementOrderItemInline(admin.TabularInline):
     model = ProcurementOrderItem
@@ -192,6 +193,7 @@ class ProcurementOrderAdmin(admin.ModelAdmin):
 
 class PurchaseOrderItemInline(admin.TabularInline):
     model = PurchaseOrderItem
+    formset = PurchaseOrderItemInlineFormSet # 使用自定义的 FormSet
     extra = 0
     fields = ('commodity', 'unit_price', 'quantity_plan', 'quantity_actual')
     autocomplete_fields = ['commodity']
@@ -204,6 +206,7 @@ class PurchaseOrderItemInline(admin.TabularInline):
             'all': (
                 'admin/css/vendor/select2/select2.css',
                 'admin/css/vendor/select2/select2.min.css',
+                'logistics/css/select_table.css',
             )
         }
         js = (
@@ -211,13 +214,14 @@ class PurchaseOrderItemInline(admin.TabularInline):
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
             'logistics/js/autocomplete2.js',
+            'logistics/js/select2_table.js',
         )
     def get_formset(self, request, obj=None, **kwargs):
         formset = super().get_formset(request, obj, **kwargs)
         formset.form.base_fields['commodity'].widget.can_add_related = False
         formset.form.base_fields['commodity'].widget.can_change_related = False
         return formset
-
+    
 
 @admin.register(PurchaseOrder)
 class PurchaseOrderAdmin(admin.ModelAdmin):
@@ -291,6 +295,27 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
             
         return f'PO-{date_str}-{new_num:03d}'
 
+    # Task 1: 采购计划1对1检查 (在 save_model 中尝试，但 Form clean 更佳)
+    def save_model(self, request, obj: PurchaseOrder, form, change):
+        if obj.procurement_plan:
+            query = PurchaseOrder.objects.filter(procurement_plan=obj.procurement_plan)
+            if change and obj.pk: # 如果是编辑，排除自己
+                query = query.exclude(pk=obj.pk)
+            if query.exists():
+                # 使用 messages 框架提示，但这不会阻止保存
+                messages.error(request, f"错误：采购计划 '{obj.procurement_plan}' 已经被其他采购订单关联。")
+        super().save_model(request, obj, form, change) # 调用父类方法保存 PurchaseOrder
+
+    def save_formset(self, request, form, formset, change):
+
+        super().save_formset(request, form, formset, change)
+        purchase_order = form.instance # 获取已保存的 PurchaseOrder 实例
+        if purchase_order.procurement_plan:
+            plan = purchase_order.procurement_plan
+            if plan.status != 'approved': # 避免不必要的更新
+                plan.status = 'approved'
+                plan.save(update_fields=['status']) # 只更新 status 字段
+                self.message_user(request, f"采购计划 '{plan.order_number}' 状态已更新为 '已批准'。", messages.SUCCESS)
 
 @admin.register(OutboundOrder)
 class OutboundOrderAdmin(admin.ModelAdmin):

@@ -31,7 +31,7 @@ class CommodityInfos(models.Model):
 
     def __str__(self):
         # 显示名称、库存、规格的组合信息
-        return f"{self.name} (库存: {self.stock} | 规格: {self.sezes})"
+        return f"{self.name}@{self.stock}@{self.sezes}"
 
     class Meta:
         verbose_name = '商品信息'

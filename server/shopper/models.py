@@ -36,10 +36,10 @@ class OrderInfos(models.Model):
     price = models.FloatField('订单总价',default=0.0)
     created = models.DateField('创建时间', auto_now_add=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE,verbose_name='购买人')
-    state = models.CharField('订单状态', max_length=20, choices=STATE)
+    state = models.CharField('订单状态', max_length=20, choices=STATE ,default='已支付')
     pay_id = models.CharField('支付订单ID', max_length=50, null=True, blank=True)
     refund_id = models.CharField('退款订单ID', max_length=50, null=True, blank=True)
-    address = models.ForeignKey('AddressInfos', on_delete=models.SET_NULL, null=True, blank=True)
+    address = models.ForeignKey('AddressInfos', on_delete=models.SET_NULL, null=True, blank=True,verbose_name='地址')
 
     def __str__(self):
         return str(self.id)

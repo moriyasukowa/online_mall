@@ -1,6 +1,7 @@
 import json
 import time
 from django.contrib.auth import logout, login, authenticate
+from django.views import View
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication
@@ -11,6 +12,8 @@ from .form import *
 from .pays import get_pay
 from .serializers import OrderInfosSerializer, CartInfosSerializer
 from .refunds import refund
+from django.db.models import Q
+from django.http import JsonResponse
 
 class MySessionAuthentication(SessionAuthentication):
     '''
@@ -237,3 +240,47 @@ class updateOrderStatusView(APIView):
                 order.save()
                 context = {'state': 'success', 'msg': '更新成功'}
         return Response(context)
+    
+class AddressSearchAPIView(View):
+    def get(self, request, *args, **kwargs):
+        term = request.GET.get('term', '')
+        page = request.GET.get('page', 1) # Select2 可能发送页码
+        # 你可以根据需要实现分页逻辑，或者返回少量结果让 Select2 处理
+
+        results = []
+        if len(term) == 0:
+            for address in AddressInfos.objects.all():
+                full_address_str = f"{address.province}{address.city}{address.district}{address.detail}"
+                results.append({
+                    'id': address.id,
+                    'name': address.recipient_name,
+                    'phone': str(address.phone_number), # 确保是字符串
+                    'full_address': full_address_str,
+                    'text': f"{address.recipient_name} ({address.phone_number})"
+                })
+            return JsonResponse({'results': results})
+        if term:
+            # 查询逻辑：同时搜索姓名、电话、详细地址
+            query = (
+                Q(recipient_name__icontains=term) |
+                Q(phone_number__icontains=term) |
+                Q(detail__icontains=term) |
+                # 可以根据需要加入省市区的搜索
+                Q(province__name__icontains=term) |
+                Q(city__name__icontains=term) |
+                Q(district__name__icontains=term)
+            )
+            addresses = AddressInfos.objects.filter(query).select_related('province', 'city', 'district')[:20] # 限制结果数量
+
+            for address in addresses:
+                full_address_str = f"{address.province}{address.city}{address.district}{address.detail}"
+                results.append({
+                    'id': address.id,
+                    'name': address.recipient_name,
+                    'phone': str(address.phone_number), # 确保是字符串
+                    'full_address': full_address_str,
+                    # 'text' 字段是 Select2 processResults 中方便使用的，也可以在前端生成
+                    'text': f"{address.recipient_name} ({address.phone_number})"
+                })
+
+        return JsonResponse({'results': results})

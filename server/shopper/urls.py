@@ -10,5 +10,6 @@ urlpatterns = [
     path('delete/', deleteView.as_view(), name='delete'),
     path('refund/', refundView.as_view(), name='refunds'),
     path('gets/', getView.as_view(), name='gets'),
-    path('updateOrderStatus/', updateOrderStatusView.as_view(), name='updateOrderStatus')
+    path('updateOrderStatus/', updateOrderStatusView.as_view(), name='updateOrderStatus'),
+    path('address-search/', AddressSearchAPIView.as_view(), name='updateOrderStatus')
 ]

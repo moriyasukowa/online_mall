@@ -35,6 +35,7 @@ class OrderInfosAdmin(admin.ModelAdmin):
         css = {
             'all': (
                 'shopper/css/inline_commodity.css',
+                'shopper/css/address_select2-table.css',
             )
         }
 
@@ -43,28 +44,19 @@ class OrderInfosAdmin(admin.ModelAdmin):
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
             'shopper/js/cal_price.js',
+            'shopper/js/address_select_table.js',
         )
     list_display = ('id', 'user_info', 'price', 'state_display', 'created', 'order_actions')
     list_filter = ('state', 'created')
     search_fields = ('id', 'user__username', 'pay_id')
+    autocomplete_fields = ['address']
     inlines = [PurchaseInfosInline]
     date_hierarchy = 'created'
     list_per_page = 20
     actions = ['mark_as_paid', 'mark_as_shipped']
-    fieldsets = (
-        (None, {
-            'fields': ('user', 'state', 'price')
-        }),
-        ('支付信息', {
-            'classes': ('collapse',),
-            'fields': ('pay_id',),
-        }),
-        ('配送信息', {
-            'classes': ('collapse',),
-            'fields': ('address',),
-        }),
-    )
+    fields = ('user', 'state', 'price','pay_id','address',)
     # 自定义方法：显示用户信息
+
     def user_info(self, obj):
         if obj.user:
             url = reverse('admin:auth_user_change', args=[obj.user.id])

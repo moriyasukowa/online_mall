@@ -22,6 +22,6 @@ python manage.py migrate
 ## 3. 上传到 GitHub
 ```bash
 git add .
-git commit -m "完成地区表"
+git commit -m "完成select2下拉框搜索和表格化"
 git push origin main
 ```

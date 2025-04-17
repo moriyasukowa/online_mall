@@ -1,0 +1,17 @@
+/* 表格样式 */
+.select2-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+.select2-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid #eee;
+}
+.select2-table tr:hover td {
+    background-color: #f5f5f5;
+}
+.select2-results__option--highlighted .select2-table tr:hover td {
+    background-color: #5897fb;
+    color: white;
+}

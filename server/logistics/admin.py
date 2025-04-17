@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.forms import ValidationError
 from django.shortcuts import redirect
-from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, LogisticsOrder, PurchaseOrderItem, StockInOrder, ProcurementOrderItem
+from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, LogisticsOrder, PurchaseOrderItem, StockInOrder, ProcurementOrderItem, OutboundOrderItem
 from django.contrib import admin
 from django.http import HttpResponseRedirect, JsonResponse
 from django.utils.html import format_html
@@ -317,50 +317,109 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
                 plan.save(update_fields=['status']) # 只更新 status 字段
                 self.message_user(request, f"采购计划 '{plan.order_number}' 状态已更新为 '已批准'。", messages.SUCCESS)
 
+
+
+def get_changeform_initial_data(self, request):
+    """设置新建表单的初始值"""
+    initial = super().get_changeform_initial_data(request)
+    initial.update({
+        'created_by': request.user,
+        'order_number': self.generate_initial_order_number(request)
+    })
+    return initial
+
+def generate_initial_order_number(self, request):
+    """生成建议订单号（用户可覆盖）"""
+    today = timezone.now().date()
+    date_str = today.strftime('%Y%m%d')
+    
+    last_order = OutboundOrder.objects.filter(
+        order_number__startswith=f'OB-{date_str}-'
+    ).order_by('-order_number').first()
+    
+    if last_order:
+        last_num = int(last_order.order_number.split('-')[-1])
+        new_num = last_num + 1
+    else:
+        new_num = 1
+        
+    return f'OB-{date_str}-{new_num:03d}'
+
+class OutboundOrderItemInline(admin.TabularInline):
+    class Media:
+        css = {
+            'all': (
+                'admin/css/vendor/select2/select2.css',
+                'admin/css/vendor/select2/select2.min.css',
+                'logistics/css/select_table.css',
+            )
+        }
+        js = (
+            'admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+            'logistics/js/select2_table.js',
+        )
+    model = OutboundOrderItem
+    fields = ('commodity', 'quantity') 
+    extra = 1  
+    autocomplete_fields = ['commodity'] 
+
 @admin.register(OutboundOrder)
 class OutboundOrderAdmin(admin.ModelAdmin):
-    list_display = ('order_number', 'commodity', 'quantity', 'created_by', 'created_at')
-    search_fields = ('order_number', 'commodity__name')
-    list_filter = ('created_at',)
-    ordering = ('-created_at',)
+    class Media:
+        css = {
+            'all': (
+                'logistics/css/inline_out.css',
+                'admin/css/vendor/select2/select2.css',
+                'admin/css/vendor/select2/select2.min.css',
+            )
+        }
+        js = (
+            'admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+        )
+
+    inlines = [OutboundOrderItemInline]
+    list_display = ('order_number', 'sales_order', 'status', 'created_by', 'created_at', 'outbound_date', 'item_count', 'total_quantity')
+    list_filter = ('status', 'created_at', 'outbound_date')
+    search_fields = ('order_number', 'sales_order__order_number', 'created_by__username')
+    readonly_fields = ('created_at', 'item_count', 'total_quantity')
+    autocomplete_fields = ['created_by']
+    fieldsets = (
+        (None, {'fields': ('order_number', 'sales_order', 'created_by', 'outbound_date')}),
+        ('备注', {'fields': ('notes',)}),
+    )
+
+    def item_count(self, obj):
+        return obj.item_count
+    item_count.short_description = '商品种类数'
+
+    def total_quantity(self, obj):
+        return obj.total_quantity
+    total_quantity.short_description = '总出库数量'
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj:
+            return self.readonly_fields + ('order_number',)
+        return self.readonly_fields
 
     def get_changeform_initial_data(self, request):
-        """设置新建表单的初始值"""
         initial = super().get_changeform_initial_data(request)
         initial.update({
             'created_by': request.user,
             'order_number': self.generate_initial_order_number(request)
         })
         return initial
-    
+
     def generate_initial_order_number(self, request):
-        """生成建议订单号（用户可覆盖）"""
         today = timezone.now().date()
         date_str = today.strftime('%Y%m%d')
-        
-        last_order = OutboundOrder.objects.filter(
-            order_number__startswith=f'OB-{date_str}-'
-        ).order_by('-order_number').first()
-        
+        last_order = PurchaseOrder.objects.filter(order_number__startswith=f'OB-{date_str}-').order_by('-order_number').first()
         if last_order:
             last_num = int(last_order.order_number.split('-')[-1])
             new_num = last_num + 1
         else:
             new_num = 1
-            
         return f'OB-{date_str}-{new_num:03d}'
-
-
-@admin.register(LogisticsOrder)
-class LogisticsOrderAdmin(admin.ModelAdmin):
-    list_display = ('tracking_number', 'purchase_order', 'order_info', 'carrier', 'status', 'estimated_delivery', 'actual_delivery')
-    search_fields = ('tracking_number', 'carrier', 'purchase_order__order_number', 'order_info__order_number')
-    list_filter = ('status', 'estimated_delivery', 'actual_delivery')
-    ordering = ('-estimated_delivery',)
-
-@admin.register(StockInOrder)
-class StockInOrderAdmin(admin.ModelAdmin):
-    list_display = ('stock_in_number', 'created_by', 'created_at', 'quantity', 'purchase_order', 'order_info')
-    search_fields = ('stock_in_number', 'purchase_order__order_number', 'order_info__order_number')
-    list_filter = ('created_at',)
-    ordering = ('-created_at',)

@@ -114,8 +114,7 @@ class PurchaseOrder(models.Model):
     def item_count(self):
         """返回订单中商品的种类数"""
         return self.items.count()
-    
-    
+        
 
 class PurchaseOrderItem(models.Model):
     """采购订单商品项"""
@@ -142,34 +141,73 @@ class PurchaseOrderItem(models.Model):
         return f"{self.order.order_number} - {self.commodity.name} x{self.quantity_actual}"
 
 class OutboundOrder(models.Model):
-    """出库单"""
+    """销售出库单"""
     order_number = models.CharField('出库单号', max_length=50, unique=True)
-    commodity = models.ForeignKey(CommodityInfos, on_delete=models.CASCADE, verbose_name='商品')
-    quantity = models.IntegerField('出库数量')
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='操作人')
-    created_at = models.DateTimeField('出库时间', auto_now_add=True)
-    
-    # 新增多对多字段，关联到 OrderInfo（假设订单模型在 shopper 应用中）
-    orders = models.ManyToManyField(
-        OrderInfos, 
-        through="OutboundOrderItem",  # 使用中间表
-        verbose_name='关联订单'
+    sales_order = models.ForeignKey(
+        OrderInfos,
+        on_delete=models.CASCADE, # 防止销售订单删除时丢失出库记录
+        verbose_name='关联销售订单',
     )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='操作人',
+    )
+    created_at = models.DateTimeField('创建时间', default=timezone.now)
+    outbound_date = models.DateTimeField('实际出库时间', default=timezone.now)
+    status = models.CharField(
+        '状态',
+        max_length=20,
+        choices=[
+            ('pending', '待揽收'),
+            ('completed', '已完成'),
+        ],
+        default='pending'
+    )
+    notes = models.TextField('备注', blank=True, null=True)
 
     class Meta:
-        verbose_name = '出库'
-        verbose_name_plural = '出库'
+        verbose_name = '销售出库单' # 名称明确为销售出库
+        verbose_name_plural = '销售出库单'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"出库单号: {self.order_number} (关联销售单: {self.sales_order.id})"
+
+    @property
+    def total_quantity(self):
+        """计算出库单的总出库数量"""
+        return sum(item.quantity for item in self.items.all())
+
+    @property
+    def item_count(self):
+        """返回出库单中商品的种类数"""
+        return self.items.count()
+
 
 class OutboundOrderItem(models.Model):
-    """中间表：记录出库单与订单的关联关系及拣选状态"""
-    outbound_order = models.ForeignKey(OutboundOrder, on_delete=models.CASCADE)
-    order = models.ForeignKey(OrderInfos, on_delete=models.CASCADE)
-    is_picked = models.BooleanField('是否已拣选', default=False)  # 可扩展更多字段
-    
+    """出库单商品项"""
+    order_number = models.ForeignKey(  
+        OutboundOrder,
+        on_delete=models.CASCADE,  
+        related_name='items',
+        verbose_name='关联出库单'
+    )
+    commodity = models.ForeignKey(
+        CommodityInfos,
+        on_delete=models.CASCADE,  # 保护商品信息
+        verbose_name='商品'
+    )
+    quantity = models.PositiveIntegerField('出库数量')  # 实际出库数量
+
     class Meta:
-        verbose_name = '中间表：出库单与订单关联关系'
-        verbose_name_plural = '中间表：出库单与订单关联关系'
-        unique_together = [('outbound_order', 'order')]  # 防止重复关联
+        verbose_name = '出库单项'
+        verbose_name_plural = '出库单项'
+
+    def __str__(self):
+        # 在 __str__ 中包含商品名可以提高可读性
+        commodity_name = self.commodity.name if self.commodity else '未知商品'
+        return f"{self.outbound_order.order_number} - {commodity_name} x{self.quantity}"  # 修改字段名
 
 class LogisticsOrder(models.Model):
     """物流单（可关联采购单或客户订单，二选一）"""

@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
+from shopper.models import AddressInfos
 from django.core.exceptions import ValidationError
 
 
@@ -49,3 +50,13 @@ class LoginModelForm(forms.ModelForm):
             return self.cleaned_data['username']
         else:
             raise ValidationError('用户名为手机号码')
+
+class AddressInfosForm(forms.ModelForm):
+    class Meta:
+        model = AddressInfos
+        fields = '__all__'
+        widgets = {
+            'province': forms.Select(attrs={'class': 'province-select'}),
+            'city': forms.Select(attrs={'class': 'city-select'}),
+            'district': forms.Select(attrs={'class': 'district-select'}),
+        }

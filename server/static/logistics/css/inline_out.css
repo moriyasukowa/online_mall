@@ -1,0 +1,71 @@
+/* logistics/css/custom_inline.css */
+
+/* 主容器优化 */
+#items-group .tabular.inline-related {
+    min-width: 640px;
+    overflow-x: auto;
+}
+/* 统一所有表头样式 */
+#items-group .tabular.inline-related thead th {
+    text-align: center !important;
+    vertical-align: middle !important;
+    font-weight: 600;
+    background: #f8f9fa;
+}
+
+/* 表格布局重置 */
+#items-group .tabular.inline-related table {
+    table-layout: fixed !important;
+    width: 90% !important;
+    min-width: 640px; 
+    border-collapse: collapse;
+}
+
+/* 商品列 */
+#items-group .tabular.inline-related th.column-commodity,
+#items-group .tabular.inline-related td.column-commodity,
+#items-group .tabular.inline-related th.field-commodity,
+#items-group .tabular.inline-related td.field-commodity { 
+    width: 30% !important;  /* 合并同类选择器 */
+    text-align: center;
+}
+
+/* 数量列 */
+#items-group .tabular.inline-related th.column-quantity,
+#items-group .tabular.inline-related td.column-quantity,
+#items-group .tabular.inline-related th.field-quantity,
+#items-group .tabular.inline-related td.field-quantity {
+    width: 30% !important;
+    text-align: center;
+}
+
+/* 删除列专项优化 */
+#items-group .tabular.inline-related th.last-column,
+#items-group .tabular.inline-related td.last-column {
+    width: 5% !important;
+    text-align: center !important;
+}
+/* 删除列特殊样式 */
+#items-group .tabular.inline-related th.delete {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 删除列特殊样式 */
+#items-group .tabular.inline-related td.delete {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 保持默认删除链接样式 */
+#items-group .tabular.inline-related td.delete a.deletelink {
+    padding: 2px 8px;
+    background: var(--delete-button-bg, #ba2121);
+    border-radius: 4px;
+    color: white !important;
+    text-decoration: none;
+    display: inline-block; /* 保持原始布局 */
+}
+

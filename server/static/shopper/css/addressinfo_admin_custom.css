@@ -1,0 +1,33 @@
+/* 统一省市县选择器的宽度 */
+.select2-container--default .province-select + .select2,
+.select2-container--default .city-select + .select2,
+.select2-container--default .district-select + .select2 {
+    width: 270px !important;
+}
+
+/* 确保原生select元素也有相同宽度（如果显示原生元素） */
+select.province-select,
+select.city-select,
+select.district-select {
+    width: 270px !important;
+}
+
+/* 针对Django admin的特定调整（如果需要） */
+.field-province .select2-container,
+.field-city .select2-container,
+.field-district .select2-container {
+    width: 270px !important;
+}
+/* 隐藏省市县字段旁边的修改/删除链接 */
+.field-province .related-widget-wrapper-link,
+.field-city .related-widget-wrapper-link,
+.field-district .related-widget-wrapper-link {
+    display: none !important;
+}
+
+/* 如果使用raw_id_fields样式 */
+.field-province .related-widget-wrapper .selector-available,
+.field-city .related-widget-wrapper .selector-available,
+.field-district .related-widget-wrapper .selector-available {
+    display: none !important;
+}

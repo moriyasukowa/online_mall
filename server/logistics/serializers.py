@@ -8,6 +8,8 @@ from .models import (
     StockInOrder,
     ProcurementOrderItem
 )
+from shopper.models import OrderInfos
+
 class ProcurementOrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProcurementOrderItem
@@ -38,19 +40,16 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         model = ProcurementOrder
         fields = '__all__'
 
-class OutboundOrderItemSerializer(serializers.ModelSerializer):
-    order_number = serializers.CharField(source='order.order_number', read_only=True)
-    
-    class Meta:
-        model = OutboundOrderItem
-        fields = ['id', 'order_number', 'is_picked']
-
 class OutboundOrderSerializer(serializers.ModelSerializer):
-    orders = OutboundOrderItemSerializer(source='outboundorderitem_set', many=True, read_only=True)
+    sales_orders = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=OrderInfos.objects.all()
+    )
     
     class Meta:
         model = OutboundOrder
         fields = '__all__'
+        read_only_fields = ('order_number', 'created_by', 'created_at')
 
 class LogisticsOrderSerializer(serializers.ModelSerializer):
     def validate(self, data):

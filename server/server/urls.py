@@ -6,6 +6,7 @@ from commodity.models import CommodityInfos
 from django.http import JsonResponse
 from logistics.urls import get_procurement_plan
 from shopper.models import Region
+from shopper.views import get_sales_order_items
 
 def region_list(request):
     parent_id = request.GET.get('parent_id')
@@ -37,4 +38,5 @@ urlpatterns = [
     path('commodity/get_commodity_price/', get_commodity_price, name='get_commodity_price'),
     path('logistics/get_procurement_plan/', get_procurement_plan, name='get_procurement_plan'),
     path('shopper/region_list/', region_list, name='region_list'),
+    path('shopper/get-sales-order-items/', get_sales_order_items, name='get_sales_order_items'),
 ]

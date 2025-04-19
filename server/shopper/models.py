@@ -5,7 +5,8 @@ from django.contrib.auth.models import User
 STATE = (
     ('待支付', '待支付'),
     ('已支付', '已支付'),
-    ('发货中', '发货中'),
+    ('待揽收', '待揽收'),
+    ('已发货', '已发货'),
     ('已签收', '已签收'),
     ('退货中', '退货中'),
     ('退款成功', '退款成功'),
@@ -42,7 +43,8 @@ class OrderInfos(models.Model):
     address = models.ForeignKey('AddressInfos', on_delete=models.SET_NULL, null=True, blank=True,verbose_name='地址')
 
     def __str__(self):
-        return str(self.id)
+        return f"{self.id}@{self.user.username if self.user else '无用户'}@{self.created.strftime('%Y-%m-%d')}@{self.get_state_display()}@{self.price}"
+
 
     class Meta:
         verbose_name = '订单信息'

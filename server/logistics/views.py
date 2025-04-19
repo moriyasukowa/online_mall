@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from .models import ProcurementOrder, StockInOrder
 from .serializers import PurchaseOrderSerializer
 from .models import OutboundOrder, OutboundOrderItem
-from .serializers import OutboundOrderSerializer, OutboundOrderItemSerializer, ProcurementOrderSerializer
+from .serializers import OutboundOrderSerializer, ProcurementOrderSerializer
 from .models import LogisticsOrder
 from .serializers import LogisticsOrderSerializer
 
@@ -56,18 +56,7 @@ class OutboundOrderViewSet(viewsets.ModelViewSet):
     serializer_class = OutboundOrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-class OutboundOrderItemViewSet(viewsets.ModelViewSet):
-    queryset = OutboundOrderItem.objects.all()
-    serializer_class = OutboundOrderItemSerializer
-    permission_classes = [permissions.IsAuthenticated]
 
-    @action(detail=True, methods=['patch'])
-    def mark_picked(self, request, pk=None):
-        """标记订单已拣选"""
-        item = self.get_object()
-        item.is_picked = True
-        item.save()
-        return Response({'status': '拣选完成'})
     
 class LogisticsOrderViewSet(viewsets.ModelViewSet):
     queryset = LogisticsOrder.objects.all()

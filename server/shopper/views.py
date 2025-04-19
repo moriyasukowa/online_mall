@@ -284,3 +284,31 @@ class AddressSearchAPIView(View):
                 })
 
         return JsonResponse({'results': results})
+    
+from django.http import JsonResponse
+from .models import OrderInfos, PurchaseInfos
+
+def get_sales_order_items(request):
+    """获取销售订单的商品项信息"""
+    order_id = request.GET.get('order_id')
+    try:
+        order = OrderInfos.objects.get(id=order_id)
+        items = PurchaseInfos.objects.filter(order=order)
+        
+        response_data = {
+            'order_number': order.id,
+            'items': [
+                {
+                    'commodity_id': item.commodityInfos_id.id,
+                    'name': str(item.commodityInfos_id.name),
+                    'unit_price': float(item.unit_price) if item.unit_price else 0,
+                    'quantity': item.quantity
+                }
+                for item in items
+            ]
+        }
+        return JsonResponse(response_data)
+    except OrderInfos.DoesNotExist:
+        return JsonResponse({'error': '销售订单不存在'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

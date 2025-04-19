@@ -22,6 +22,6 @@ python manage.py migrate
 ## 3. 上传到 GitHub
 ```bash
 git add .
-git commit -m "完成select2下拉框搜索和表格化"
+git commit -m "完成侧选框与内联表关联"
 git push origin main
 ```

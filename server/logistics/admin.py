@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.forms import ValidationError
 from django.shortcuts import redirect
+from django.db import transaction
+
+from shopper.models import OrderInfos
 from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, LogisticsOrder, PurchaseOrderItem, StockInOrder, ProcurementOrderItem, OutboundOrderItem
 from django.contrib import admin
 from django.http import HttpResponseRedirect, JsonResponse
@@ -318,33 +321,6 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
                 self.message_user(request, f"采购计划 '{plan.order_number}' 状态已更新为 '已批准'。", messages.SUCCESS)
 
 
-
-def get_changeform_initial_data(self, request):
-    """设置新建表单的初始值"""
-    initial = super().get_changeform_initial_data(request)
-    initial.update({
-        'created_by': request.user,
-        'order_number': self.generate_initial_order_number(request)
-    })
-    return initial
-
-def generate_initial_order_number(self, request):
-    """生成建议订单号（用户可覆盖）"""
-    today = timezone.now().date()
-    date_str = today.strftime('%Y%m%d')
-    
-    last_order = OutboundOrder.objects.filter(
-        order_number__startswith=f'OB-{date_str}-'
-    ).order_by('-order_number').first()
-    
-    if last_order:
-        last_num = int(last_order.order_number.split('-')[-1])
-        new_num = last_num + 1
-    else:
-        new_num = 1
-        
-    return f'OB-{date_str}-{new_num:03d}'
-
 class OutboundOrderItemInline(admin.TabularInline):
     class Media:
         css = {
@@ -362,7 +338,8 @@ class OutboundOrderItemInline(admin.TabularInline):
         )
     model = OutboundOrderItem
     fields = ('commodity', 'quantity') 
-    extra = 1  
+    extra = 0
+    min_num = 1
     autocomplete_fields = ['commodity'] 
 
 @admin.register(OutboundOrder)
@@ -371,6 +348,7 @@ class OutboundOrderAdmin(admin.ModelAdmin):
         css = {
             'all': (
                 'logistics/css/inline_out.css',
+                'logistics/css/custom_filter_horizontal.css',
                 'admin/css/vendor/select2/select2.css',
                 'admin/css/vendor/select2/select2.min.css',
             )
@@ -379,18 +357,25 @@ class OutboundOrderAdmin(admin.ModelAdmin):
             'admin/js/vendor/jquery/jquery.js',
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
+            'logistics/js/custom_filter_horizontal.js',
+            'logistics/js/outbound_complete.js',
         )
 
     inlines = [OutboundOrderItemInline]
-    list_display = ('order_number', 'sales_order', 'status', 'created_by', 'created_at', 'outbound_date', 'item_count', 'total_quantity')
+    list_display = ('order_number', 'status', 'created_by', 'created_at', 'outbound_date', 'item_count', 'total_quantity')
     list_filter = ('status', 'created_at', 'outbound_date')
-    search_fields = ('order_number', 'sales_order__order_number', 'created_by__username')
+    search_fields = ('order_number','created_by__username')
     readonly_fields = ('created_at', 'item_count', 'total_quantity')
     autocomplete_fields = ['created_by']
-    fieldsets = (
-        (None, {'fields': ('order_number', 'sales_order', 'created_by', 'outbound_date')}),
-        ('备注', {'fields': ('notes',)}),
-    )
+    fields = ('order_number',  'created_by', 'outbound_date','sales_orders', 'notes')
+    # 使用自定义模板
+    filter_horizontal = ['sales_orders']
+    
+    # 限制只显示待支付的订单
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "sales_orders":
+            kwargs["queryset"] = OrderInfos.objects.filter(state='已支付')
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     def item_count(self, obj):
         return obj.item_count
@@ -416,10 +401,38 @@ class OutboundOrderAdmin(admin.ModelAdmin):
     def generate_initial_order_number(self, request):
         today = timezone.now().date()
         date_str = today.strftime('%Y%m%d')
-        last_order = PurchaseOrder.objects.filter(order_number__startswith=f'OB-{date_str}-').order_by('-order_number').first()
+        last_order = OutboundOrder.objects.filter(order_number__startswith=f'OB-{date_str}-').order_by('-order_number').first()
         if last_order:
             last_num = int(last_order.order_number.split('-')[-1])
             new_num = last_num + 1
         else:
             new_num = 1
         return f'OB-{date_str}-{new_num:03d}'
+    
+    def save_model(self, request, obj, form, change):
+        with transaction.atomic():
+            # 先保存出库单（但不提交事务）
+            super().save_model(request, obj, form, change)
+            
+            # 获取表单中提交的销售订单ID列表
+            if 'sales_orders' in form.cleaned_data:
+                sales_order_ids = [order.id for order in form.cleaned_data['sales_orders']]
+                
+                # 更新这些订单的状态
+                updated_count = OrderInfos.objects.filter(
+                    id__in=sales_order_ids
+                ).update(state='待揽收')
+                
+                # 添加操作成功的消息
+                messages.success(
+                    request, 
+                    f'成功创建出库单，并更新了{updated_count}个关联订单的状态为"待揽收"'
+                )
+                
+                # 确保多对多关系被保存（Django通常会自动处理）
+                form.save_m2m()
+            else:
+                messages.warning(
+                    request, 
+                    '出库单创建成功，但没有关联任何销售订单'
+                )

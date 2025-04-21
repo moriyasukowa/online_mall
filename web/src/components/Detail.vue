@@ -27,7 +27,11 @@
                 commoditys.discount
               }}</strong></p>
             <p class="address-box"><span>送&nbsp;&nbsp;&nbsp;&nbsp;至</span>
-              <strong class="address">广东&nbsp;&nbsp;广州&nbsp;&nbsp;天河区</strong>
+              <strong class="address" v-if="userAddress">{{ userAddress }}</strong>
+              <strong class="address" v-else>暂无收货地址</strong>
+              <a href="javascript:;" class="add-address-link" @click="goToAddAddress">
+                <i class="layui-icon layui-icon-add-1"></i>添加地址
+              </a>
             </p>
           </div>
           <div class="choose-attrs">
@@ -89,11 +93,13 @@ export default {
       recommend: [],
       likes: false,
       quantity: 1,
-      path: this.$store.state.lookImgUrl
+      path: this.$store.state.lookImgUrl,
+      userAddress: '' // 添加用户地址字段
     }
   },
   mounted: function () {
     this.getcode(); //页面加载时自动执行
+    this.getUserAddress(); // 获取用户地址
     // 加载layui的JS脚本，购买数量的加减按钮触发的函数
     window.layui.config({
       base: 'js/'
@@ -113,6 +119,33 @@ export default {
     })
   },
   methods: {
+    // 获取用户地址
+    getUserAddress: function() {
+      // 检查用户是否登录
+      if (this.$store.state.username === '') {
+        return;
+      }
+      
+      this.axios.get('/api/v1/shopper/address/default/get/')
+        .then(response => {
+          if (response.data.state === 'success' && response.data.data) {
+            const address = response.data.data;
+            // 格式化地址显示
+            this.userAddress = `${address.province.name} ${address.city.name} ${address.district.name}`;
+          }
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
+    },
+    // 跳转到添加地址页面
+    goToAddAddress: function() {
+      if (this.$store.state.username === '') {
+        this.$router.push({path: '/shopper/login'});
+        return;
+      }
+      this.$router.push({path: '/shopper/address/add'});
+    },
     // 定义add函数，访问后台获取数据并写入数组myData
     myLike: function (id) {
       this.axios.post('/api/v1/commodity/collect/',
@@ -161,5 +194,27 @@ export default {
 </script>
 
 <style scoped>
+.address-box {
+  display: flex;
+  align-items: center;
+}
 
+.address {
+  margin-right: 10px;
+}
+
+.add-address-link {
+  color: #1E9FFF;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.add-address-link:hover {
+  color: #0d8adc;
+  text-decoration: underline;
+}
+
+.add-address-link i {
+  margin-right: 3px;
+}
 </style>

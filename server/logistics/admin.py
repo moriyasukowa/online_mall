@@ -29,6 +29,7 @@ class ProcurementOrderItemInline(admin.TabularInline):
             'all': (
                 'admin/css/vendor/select2/select2.css',
                 'admin/css/vendor/select2/select2.min.css',
+                'logistics/css/select_table.css',
             )
         }
         js = (
@@ -36,6 +37,7 @@ class ProcurementOrderItemInline(admin.TabularInline):
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
             'logistics/js/autocomplete2.js',
+            'logistics/js/select2_table.js',
         )
     def get_formset(self, request, obj=None, **kwargs):
         formset = super().get_formset(request, obj, **kwargs)

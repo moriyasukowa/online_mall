@@ -5,30 +5,44 @@
         const $inlineForm = $('#items-group');
         const $totalForms = $('#id_items-TOTAL_FORMS');
         const orderItemsCache = {};
+        let isInitialLoad = true; // 添加初始加载标志
+
+        console.log('Outbound complete script loaded.');
 
         function initializeListeners() {
             const observer = new MutationObserver(function() {
-                syncOrdersToItems();
+                if (!isInitialLoad) { // 只在非初始加载时执行
+                    syncOrdersToItems();
+                }
             });
-
             observer.observe($chosenSelect[0], {
                 childList: true,
                 subtree: true,
                 characterData: true
             });
-
-            $chosenSelect.on('change', syncOrdersToItems);
-
+            $chosenSelect.on('change', function() {
+                if (!isInitialLoad) { // 只在非初始加载时执行
+                    syncOrdersToItems();
+                }
+            });
             $(document).on('dblclick', '.selector-available select option, .selector-chosen select option', function() {
-                setTimeout(syncOrdersToItems, 100);
+                setTimeout(function() {
+                    if (!isInitialLoad) { // 只在非初始加载时执行
+                        syncOrdersToItems();
+                    }
+                }, 100);
             });
-
             $selector.find('.selector-add, .selector-remove').on('click', function() {
-                setTimeout(syncOrdersToItems, 100);
+                setTimeout(function() {
+                    if (!isInitialLoad) { // 只在非初始加载时执行
+                        syncOrdersToItems();
+                    }
+                }, 100);
             });
-
-            syncOrdersToItems();
+            // 移除初始的 syncOrdersToItems() 调用
+            isInitialLoad = false; // 设置初始加载完成
         }
+
 
         function syncOrdersToItems() {
             const selectedOrderIds = [];

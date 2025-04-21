@@ -10,6 +10,15 @@ from shopper.views import get_sales_order_items
 
 def region_list(request):
     parent_id = request.GET.get('parent_id')
+    if int(parent_id) == 0:    
+        print(f"parent_id: {parent_id}")
+        queryset = Region.objects.filter(level = '1')
+        data = {
+            'code': 200,
+            'message': 'success',
+            'data': [{'id': r.id, 'name': r.name} for r in queryset]
+        }
+        return JsonResponse(data)
     queryset = Region.objects.filter(parent_id=parent_id)
     data = {
         'code': 200,
@@ -38,5 +47,5 @@ urlpatterns = [
     path('commodity/get_commodity_price/', get_commodity_price, name='get_commodity_price'),
     path('logistics/get_procurement_plan/', get_procurement_plan, name='get_procurement_plan'),
     path('shopper/region_list/', region_list, name='region_list'),
-    path('shopper/get-sales-order-items/', get_sales_order_items, name='get_sales_order_items'),
+    path('shopper/get-sales-order-items/', get_sales_order_items, name='get_sales_order_items')
 ]

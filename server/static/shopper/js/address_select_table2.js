@@ -131,10 +131,13 @@
 
         // 页面加载时尝试初始化
         console.log("Custom address select2 script started. Waiting for document ready.");
-        initializeAddressSelect2($(selectElementSelector));
-
-        // 如果是动态添加的（例如 Inline），可能需要 MutationObserver 或类似机制
-        // ...
+        
+        var header = document.querySelector('.el-page-header__content');
+        if (header && header.textContent.includes('增加')) {
+            console.log("Header contains '增加', initializing address select2.");
+            initializeAddressSelect2($(selectElementSelector));
+        }
+    
 
     });
 })(django.jQuery);

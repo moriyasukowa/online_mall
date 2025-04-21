@@ -83,7 +83,7 @@
                 <p hidden="hidden" id="userId">{{ username }}</p>
             </div>
             <div class="copy_th Settlement">
-                <button class="layui-btn" @click="pays">结算</button>
+                <button class="layui-btn" @click="goToCheckout">结算</button>
             </div>
             <div class="copy_th total">
                 <p>应付：<span class="pieces-total">￥0.00</span></p>
@@ -119,16 +119,37 @@
                         console.log(error)
                     })
             },
-            pays: function () {
-                var d = {'total': window.layui.$(".pieces-total").text()}
-                this.axios.post('/api/v1/shopper/pays/', d).then(response => {
-                    if (response.data.data !== ''){
-                        window.location.href = response.data.data
+            // 修改结算按钮的处理函数
+            goToCheckout: function () {
+                // 获取选中的商品和总金额
+                const selectedItems = [];
+                const checkboxes = document.querySelectorAll('.CheckBoxShop.check:checked');
+                
+                checkboxes.forEach((checkbox, index) => {
+                    const item = this.cartInfos[index];
+                    if (item) {
+                        selectedItems.push(item);
                     }
-                })
-                    .catch(function (error) {
-                        console.log(error)
-                    })
+                });
+                
+                // 如果没有选中商品，提示用户
+                if (selectedItems.length === 0) {
+                    alert('请选择要结算的商品');
+                    return;
+                }
+                
+                // 将选中的商品信息和总金额存入 store 或 sessionStorage
+                const total = window.layui.$(".pieces-total").text();
+                const checkoutData = {
+                    items: selectedItems,
+                    total: total
+                };
+                
+                // 使用 sessionStorage 存储结算数据
+                sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData));
+                
+                // 跳转到结算页面
+                this.$router.push('/checkout');
             },
             delCarInfo(style) {
                 var d

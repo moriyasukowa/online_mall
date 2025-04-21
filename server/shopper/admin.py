@@ -44,7 +44,7 @@ class OrderInfosAdmin(admin.ModelAdmin):
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
             'shopper/js/cal_price.js',
-            'shopper/js/address_select_table.js',
+            'shopper/js/address_select_table2.js',
         )
     list_display = ('id', 'user_info', 'price', 'state_display', 'created', 'order_actions')
     list_filter = ('state', 'created')

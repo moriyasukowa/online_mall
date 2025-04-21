@@ -139,6 +139,7 @@ class PurchaseOrderItem(models.Model):
 
     def __str__(self):
         return f"{self.order.order_number} - {self.commodity.name} x{self.quantity_actual}"
+
 class OutboundOrder(models.Model):
     """销售出库单"""
     order_number = models.CharField('出库单号', max_length=50, unique=True)
@@ -159,7 +160,6 @@ class OutboundOrder(models.Model):
         max_length=20,
         choices=[
             ('pending', '待揽收'),
-            ('packing', '打包中'),
             ('shipped', '已发货'),
             ('completed', '已完成'),
         ],
@@ -185,6 +185,7 @@ class OutboundOrder(models.Model):
     def related_order_numbers(self):
         """获取所有关联销售订单号的字符串表示"""
         return ", ".join([str(order.id) for order in self.sales_orders.all()])
+
 class OutboundOrderItem(models.Model):
     """出库单商品项"""
     order_number = models.ForeignKey(  # 字段名改为更清晰的outbound_order

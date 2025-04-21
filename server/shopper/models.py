@@ -70,7 +70,7 @@ class RefundInfos(models.Model):
 
 class PurchaseInfos(models.Model):
     id = models.AutoField(primary_key=True)
-    order = models.ForeignKey(OrderInfos, on_delete=models.SET_NULL, null=True, blank=True)
+    order = models.ForeignKey(OrderInfos, on_delete=models.CASCADE, null=True, blank=True)
     commodityInfos_id = models.ForeignKey(CommodityInfos, on_delete=models.CASCADE, verbose_name='商品')
     quantity = models.IntegerField('购买数量', default=0)
     unit_price = models.FloatField('单价')

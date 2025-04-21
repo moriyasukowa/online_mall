@@ -2,9 +2,11 @@
 
 ## 1. 编译 Vue3 项目
 ```bash
+
 cd web
-npm install
-npm run build
+$env:NODE_OPTIONS="--openssl-legacy-provider"
+npm run dev
+
 ```
 
 ```bash
@@ -22,6 +24,6 @@ python manage.py migrate
 ## 3. 上传到 GitHub
 ```bash
 git add .
-git commit -m "完成侧选框与内联表关联"
+git commit -m "4.20大更新，用户端界面优化，增加结算，订单明细页面"
 git push origin main
 ```

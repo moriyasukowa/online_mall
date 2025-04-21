@@ -8,7 +8,7 @@ STATE = (
     ('待揽收', '待揽收'),
     ('已发货', '已发货'),
     ('已签收', '已签收'),
-    ('退货中', '退货中'),
+    ('退款中', '退款中'),
     ('退款成功', '退款成功'),
 )
 
@@ -20,10 +20,10 @@ REFUND_STATE = (
 )
 
 class CartInfos(models.Model):
-    id = models.AutoField(primary_key=True)
-    quantity = models.IntegerField('购买数量')
-    commodityInfos_id = models.ForeignKey(CommodityInfos, on_delete=models.SET_NULL, null=True, blank=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    id = models.AutoField(primary_key=True, verbose_name='购物车ID')
+    quantity = models.IntegerField('购买数量', default=0)
+    commodityInfos_id = models.ForeignKey(CommodityInfos, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='商品')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='用户ID')
 
     def __str__(self):
         return str(self.id)
@@ -52,14 +52,15 @@ class OrderInfos(models.Model):
 
 class RefundInfos(models.Model):
     id = models.AutoField(primary_key=True)
-    order = models.ForeignKey(OrderInfos, on_delete=models.CASCADE)
+    order = models.ForeignKey(OrderInfos, on_delete=models.CASCADE, verbose_name='关联订单号')
     refund_id = models.CharField('退款订单ID', max_length=50)
     price = models.FloatField('退款金额')
     user = models.ForeignKey(User, on_delete=models.CASCADE,verbose_name='购买人')
     created = models.DateField('创建时间', auto_now_add=True)
-    state = models.CharField('退款状态', max_length=20, choices=REFUND_STATE)
-    reason = models.TextField('退款原因')
-    attach = models.FileField('退款凭证', upload_to=r'details')
+    state = models.CharField('退款状态', max_length=20, choices=REFUND_STATE, default='退款申请中')
+    reason = models.TextField('退款原因', null=True, blank=True)
+    attach = models.FileField('退款凭证', upload_to=r'details', null=True, blank=True)
+    status_before = models.CharField('退款前状态', max_length=20, choices=STATE, default='已支付', null=True, blank=True)
 
     def __str__(self):
         return str(self.id)

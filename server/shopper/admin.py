@@ -5,6 +5,8 @@ from django.urls import path, reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html
 from shopper.form import AddressInfosForm
+from django.utils import timezone
+from django.db import transaction
 
 class PurchaseInfosInline(admin.TabularInline):
     model = PurchaseInfos
@@ -147,56 +149,133 @@ class RegionAdmin(admin.ModelAdmin):
 
 @admin.register(RefundInfos)
 class RefundInfosAdmin(admin.ModelAdmin):
-    list_display = ['id', 'created', 'state', 'order_id', 'price']
+    class Media:
+        css = {
+            'all': (
+                'shopper/css/select_table.css',
+                'shopper/css/order_table.css',
+
+            )
+        }
+
+        js = (
+            'admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+            'shopper/js/refund_autocomplete.js',
+            'shopper/js/order_table.js',
+        )   
+    list_display = ['refund_id', 'created', 'state', 'price', 'reason', 'status_before']
+
+    list_editable = ['state',]
     list_filter = ['state']
     date_hierarchy = 'created'
-    def approve_selected_orders(self, request, queryset):
-            invalid_orders = queryset.exclude(state='退款申请中')
-            if invalid_orders.exists():
-                self.message_user(
-                    request,
-                    f"跳过 {invalid_orders.count()} 个非待审核状态的采购单",
-                    level=messages.WARNING
-                )
-            
-            valid_orders = queryset.filter(status='退款申请中')
-            updated_count = valid_orders.update(status='退款成功')
-            
-            self.message_user(
-                request,
-                f"成功批准 {updated_count} 个退款申请",
-                level=messages.SUCCESS
-            )
-    approve_selected_orders.short_description = "批准选中的退款申请"
+    autocomplete_fields = ['order']
+    
+    search_fields = ['refund_id', 'order__user__username']
+    list_per_page = 20
+    actions = ['approve_refund', 'reject_refund']
 
-    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
-        extra_context = extra_context or {}
-        if object_id:
-            extra_context['show_approve_button'] = True
-        return super().changeform_view(request, object_id, form_url, extra_context)
+    def get_changeform_initial_data(self, request):
+        """设置新建表单的初始值"""
+        initial = super().get_changeform_initial_data(request)
+        initial.update({
+            'refund_id': self.generate_initial_refund_id(request),
+            'reason' : "管理员后台操作"
+        })
+        return initial
 
-    def get_urls(self):
-        urls = super().get_urls()
-        custom_urls = [
-            path(
-                '<path:object_id>/approve/',
-                self.admin_site.admin_view(self.approve_single_order),
-                name='approve_purchase_order'
-            ),
-        ]
-        return custom_urls + urls
+    def generate_initial_refund_id(self, request):
+        """生成建议订单号（用户可覆盖）"""
+        today = timezone.now().date()
+        date_str = today.strftime('%Y%m%d')
+        
+        last_order = RefundInfos.objects.filter(
+            refund_id__startswith=f'RF-{date_str}-'
+        ).order_by('-refund_id').first()
 
-    def approve_single_order(self, request, object_id):
-        purchase_order = RefundInfos.objects.get(id=object_id)
-        if purchase_order.status == '退款申请中':
-            purchase_order.status = '退款成功'
-            purchase_order.save()
-            self.message_user(request, "采购单已批准", messages.SUCCESS)
+        if last_order:
+            last_num = int(last_order.refund_id.split('-')[-1])
+            new_num = last_num + 1
         else:
-            self.message_user(request, "仅能批准待审核状态的采购单", messages.ERROR)
-        return HttpResponseRedirect(
-            reverse('admin:logistics_purchaseorder_change', args=[object_id])
-        )
+            new_num = 1
+            
+        return f'RF-{date_str}-{new_num:03d}'
+
+    def save_model(self, request, obj, form, change):
+        """保存模型并更新关联订单状态"""
+        is_new = not change
+        original_state = None
+        if not is_new:
+            original_state = RefundInfos.objects.get(pk=obj.pk).state
+
+        super().save_model(request, obj, form, change)
+
+        if is_new and obj.order:
+            if obj.order.state not in ['退款中', '退款成功']:
+                obj.status_before = obj.order.state
+                obj.order.state = '退款中'
+                obj.save(update_fields=['status_before'])
+                obj.order.save(update_fields=['state'])
+                self.message_user(request, f"订单 {obj.order.id} 状态已更新为退款中。", messages.SUCCESS)
+        elif not is_new and obj.state != original_state:
+            if obj.state == '退款成功' and obj.order and obj.order.state != '退款成功':
+                obj.order.state = '退款成功'
+                obj.order.save(update_fields=['state'])
+                self.message_user(request, f"订单 {obj.order.id} 状态已更新为退款成功。", messages.SUCCESS)
+            elif obj.state == '退款失败' and obj.order and obj.status_before:
+                obj.order.state = obj.status_before
+                obj.order.save(update_fields=['state'])
+                self.message_user(request, f"订单 {obj.order.id} 状态已恢复为 {obj.order.get_state_display()}", messages.SUCCESS)
+
+    @transaction.atomic
+    def approve_refund(self, request, queryset):
+        """批准退款申请"""
+        updated_count = 0
+        for refund in queryset.filter(state='退款申请中'):
+            if refund.order:
+                if refund.status_before != '已签收':
+                    refund.state = '退款成功'
+                    refund.order.state = '退款成功'
+                    refund.save(update_fields=['state'])
+                    refund.order.save(update_fields=['state'])
+                    updated_count += 1
+                else:
+                    refund.state = '退货中'
+                    refund.save(update_fields=['state'])
+                    updated_count += 1
+        if updated_count > 0:
+            self.message_user(request, f"{updated_count} 个退款申请已处理。", messages.SUCCESS)
+        else:
+            self.message_user(request, "没有符合条件的退款申请可供处理。", messages.WARNING)
+    approve_refund.short_description = "批准选中的退款申请"
+
+    @transaction.atomic
+    def reject_refund(self, request, queryset):
+        """驳回退款申请"""
+        updated_count = 0
+        for refund in queryset.filter(state='退款申请中'):
+            if refund.order and refund.status_before:
+                refund.state = '退款失败'
+                refund.order.state = refund.status_before
+                refund.save(update_fields=['state'])
+                refund.order.save(update_fields=['state'])
+                updated_count += 1
+        if updated_count > 0:
+            self.message_user(request, f"{updated_count} 个退款申请已被驳回。", messages.SUCCESS)
+        else:
+            self.message_user(request, "没有符合条件的退款申请可供驳回。", messages.WARNING)
+    reject_refund.short_description = "驳回选中的退款申请"
 
 
+@admin.register(CartInfos)
+class CartInfosAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'commodityInfos_id', 'quantity')
+    search_fields = ('user__username', 'commodityInfos_id__name') # Assuming CommodityInfos has a 'name' field
+    autocomplete_fields = ('user', 'commodityInfos_id')
+    list_editable = ('quantity',)
+    list_per_page = 20
 
+    def get_queryset(self, request):
+        # Optimize query by prefetching related user and commodity info
+        return super().get_queryset(request).select_related('user', 'commodityInfos_id')

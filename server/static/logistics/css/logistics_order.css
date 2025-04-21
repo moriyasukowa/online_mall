@@ -1,0 +1,54 @@
+/* 初始隐藏所有关联单据字段 */
+.field-purchase_order, .field-outbound_order, .field-refund_info {
+    display: none;
+}
+/* 单据类型选择样式 */
+.source-type-selection ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    gap: 20px;
+}
+.source-type-selection li {
+    margin-bottom: 10px;
+}
+.source-type-selection label {
+    display: inline-block;
+    padding: 8px 15px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+.source-type-selection input[type="radio"]:checked + label {
+    background-color: #79aec8;
+    color: white;
+}
+.source-type-selection input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+/* 统一 Select2 控件样式 */
+.field-purchase_order .select2-container,
+.field-outbound_order .select2-container,
+.field-refund_info .select2-container {
+    width: 100% !important;
+    min-width: 350px;
+}
+.field-purchase_order .select2-selection,
+.field-outbound_order .select2-selection,
+.field-refund_info .select2-selection {
+    height: 36px !important;
+    padding: 4px 8px;
+    border-color: #ddd !important;
+}
+.field-purchase_order .select2-selection__rendered,
+.field-outbound_order .select2-selection__rendered,
+.field-refund_info .select2-selection__rendered {
+    line-height: 28px !important;
+}
+.field-purchase_order .select2-selection__arrow,
+.field-outbound_order .select2-selection__arrow,
+.field-refund_info .select2-selection__arrow {
+    height: 36px !important;
+}

@@ -2,9 +2,8 @@ from django.contrib import admin
 from django.forms import ValidationError
 from django.shortcuts import redirect
 from django.db import transaction
-
 from shopper.models import OrderInfos
-from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, LogisticsOrder, PurchaseOrderItem, StockInOrder, ProcurementOrderItem, OutboundOrderItem
+from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, LogisticsOrder, PurchaseOrderItem, StockInOrder, ProcurementOrderItem, OutboundOrderItem, LogisticsOrderItem, StockInOrderItem
 from django.contrib import admin
 from django.http import HttpResponseRedirect, JsonResponse
 from django.utils.html import format_html
@@ -13,7 +12,7 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.contrib.admin import DateFieldListFilter
 from rangefilter.filters import DateRangeFilter
-from logistics.form import PurchaseOrderItemInlineFormSet
+from logistics.form import LogisticsOrderAdminForm, PurchaseOrderItemInlineFormSet
 
 class ProcurementOrderItemInline(admin.TabularInline):
     model = ProcurementOrderItem
@@ -438,3 +437,116 @@ class OutboundOrderAdmin(admin.ModelAdmin):
                     request, 
                     '出库单创建成功，但没有关联任何销售订单'
                 )
+class LogisticsOrderItemInline(admin.TabularInline):
+    model = LogisticsOrderItem
+    extra = 1
+    autocomplete_fields = ['commodity']
+    fields = ['commodity', 'quantity']
+    min_num = 1
+    verbose_name = "物流单商品项"
+    verbose_name_plural = "物流单商品项"
+@admin.register(LogisticsOrder)
+
+class LogisticsOrderAdmin(admin.ModelAdmin):
+    class Media:
+        css = {
+            'all': ('logistics/css/logistics_order.css',
+                    'logistics/css/custom_inline.css',
+                    'logistics/css/select_table.css',)
+        }
+        js = ('admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+            'logistics/js/logistics_order.js',
+            'logistics/js/select2_table.js'
+            )
+
+    form = LogisticsOrderAdminForm
+    list_display = ['tracking_number', 'carrier', 'status', 'source_info', 
+                    'estimated_delivery', 'actual_delivery', 'total_quantity',  
+                    'item_count', 'created_at']
+    list_filter = ['status', 'carrier', 'created_at']
+    search_fields = ['tracking_number', 'carrier', 'notes']
+    inlines = [LogisticsOrderItemInline]
+    
+    fields = ['tracking_number', 'carrier', 'status', 'estimated_delivery', 'created_by', 'source_type', 'purchase_order', 'outbound_order', 'refund_info', 'origin_address', 'destination_address', 'notes']
+
+    autocomplete_fields = ['purchase_order', 'outbound_order', 'refund_info']
+    
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        initial.update({
+            'created_by': request.user,
+            'tracking_number': self.generate_initial_order_number(request)
+        })
+        return initial
+
+    def generate_initial_order_number(self, request):
+        today = timezone.now().date()
+        date_str = today.strftime('%Y%m%d')
+        last_order = LogisticsOrder.objects.filter(tracking_number__startswith=f'LO-{date_str}-').order_by('-tracking_number').first()
+        if last_order:
+            last_num = int(last_order.tracking_number.split('-')[-1])
+            new_num = last_num + 1
+        else:
+            new_num = 1
+        return f'LO-{date_str}-{new_num:03d}'
+    
+    def source_info(self, obj):
+        if obj.purchase_order:
+            return format_html('<span style="color: blue;">采购单: {}</span>', obj.purchase_order.order_number)
+        elif obj.outbound_order:
+            return format_html('<span style="color: green;">出库单: {}</span>', obj.outbound_order.order_number)
+        elif obj.refund_info:
+            return format_html('<span style="color: red;">退款单: {}</span>', obj.refund_info.refund_id)
+        return "未关联"
+    source_info.short_description = "关联来源"
+    
+    
+
+class StockInOrderItemInline(admin.TabularInline):
+    model = StockInOrderItem
+    extra = 1
+    autocomplete_fields = ['commodity']
+    fields = ['commodity', 'quantity', 'reason']
+    min_num = 1
+    verbose_name = "入库单商品项"
+    verbose_name_plural = "入库单商品项"
+
+@admin.register(StockInOrder)
+class StockInOrderAdmin(admin.ModelAdmin):
+    list_display = ['stock_in_number', 'status', 'created_by', 'created_at', 
+                    'total_quantity', 'item_count', 'logistics_orders_display']
+    list_filter = ['status', 'created_at', 'created_by']
+    search_fields = ['stock_in_number', 'notes']
+    filter_horizontal = ['sales_orders']  # 使用多对多字段选择器
+    readonly_fields = ['created_at']
+    inlines = [StockInOrderItemInline]
+    fieldsets = (
+        ('基本信息', {
+            'fields': ('stock_in_number', 'status', 'created_by', 'created_at')
+        }),
+        ('关联物流单', {
+            'fields': ('sales_orders',)
+        }),
+        ('其他信息', {
+            'fields': ('notes',)
+        }),
+    )
+    
+    def logistics_orders_display(self, obj):
+        logistics_orders = obj.sales_orders.all()
+        if not logistics_orders:
+            return "无关联物流单"
+        
+        links = []
+        for order in logistics_orders[:3]:  # 限制显示数量
+            links.append(format_html('<a href="{}">{}</a>', 
+                        f'/admin/yourapp/logisticsorder/{order.id}/change/', 
+                        order.tracking_number))
+        
+        if logistics_orders.count() > 3:
+            links.append(f"等{logistics_orders.count()}个")
+            
+        return format_html(', '.join(links))
+    logistics_orders_display.short_description = "关联物流单"

@@ -24,6 +24,6 @@ python manage.py migrate
 ## 3. 上传到 GitHub
 ```bash
 git add .
-git commit -m "4.20大更新，用户端界面优化，增加结算，订单明细页面"
+git commit -m "4.21 小更新，优化数据库结构，涉及到地址，物流单，入库单等"
 git push origin main
 ```

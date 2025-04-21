@@ -1,6 +1,8 @@
 # 1. 自定义 Inline FormSet 来处理数量验证 (Task 2)
 from django.forms import BaseInlineFormSet
 from logistics.models import ProcurementOrder, PurchaseOrderItem
+from django import forms
+from logistics.models import LogisticsOrder
 
 class PurchaseOrderItemInlineFormSet(BaseInlineFormSet):
     
@@ -33,3 +35,36 @@ class PurchaseOrderItemInlineFormSet(BaseInlineFormSet):
                     form.add_error('commodity', f"产品 '{commodity}' 不在采购计划 '{procurement_plan}' 中。")
                 elif quantity_actual > plan_quantity:
                     form.add_error('quantity_plan', f"数量 ({quantity_actual}) 不能超过计划数量 ({plan_quantity})。")
+
+class LogisticsOrderAdminForm(forms.ModelForm):
+    SOURCE_CHOICES = [
+        ('', '请选择单据类型'),
+        ('purchase', '采购单'),
+        ('outbound', '出库单'),
+        ('refund', '退款单'),
+    ]
+    
+    source_type = forms.ChoiceField(
+        label='单据类型',
+        choices=SOURCE_CHOICES,
+        required=True,
+        widget=forms.RadioSelect
+    )
+
+
+    class Meta:
+        model = LogisticsOrder
+        fields = '__all__'
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        instance = kwargs.get('instance')
+        
+        # 如果是编辑现有记录，设置正确的单据类型
+        if instance:
+            if instance.purchase_order:
+                self.initial['source_type'] = 'purchase'
+            elif instance.outbound_order:
+                self.initial['source_type'] = 'outbound'
+            elif instance.refund_info:
+                self.initial['source_type'] = 'refund'

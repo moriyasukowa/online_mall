@@ -117,7 +117,6 @@
             
             <div class="right-actions">
                 <button 
-                    v-if="canRefund(orderInfo.state)" 
                     class="action-button refund-button"
                     @click="goToRefund"
                 >
@@ -125,7 +124,7 @@
                 </button>
                 
                 <button 
-                    v-if="orderInfo.state === 'shipped'" 
+                    v-if="orderInfo.state === '已发货'" 
                     class="action-button confirm-button"
                     @click="confirmReceipt"
                 >
@@ -137,215 +136,122 @@
     
     <footer-page></footer-page>
 </template>
-
 <script>
 import { ElMessage, ElMessageBox } from 'element-plus'
-
-
 export default {
     name: "OrderDetail",
-    // components: { BasePage, FooterPage }, // 如果需要，取消注释
     data() {
         return {
             activation: 'shopper',
             orderId: null,
-            orderInfo: {}, // 将从 API 的 data.order 获取
-            orderItems: [], // 将从 API 的 data.items 获取
-            addressInfo: null, // 将从 API 的 data.address 获取
+            orderInfo: {},
+            orderItems: [],
+            addressInfo: null,
             loading: true
         }
     },
     computed: {
         totalQuantity() {
-            // 计算总件数，reduce 的第二个参数是初始值
             return this.orderItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
         }
     },
     created() {
-        // 从路由参数获取订单ID
         this.orderId = this.$route.params.orderId;
         if (this.orderId) {
-          this.fetchOrderDetail();
+            this.fetchOrderDetail();
         } else {
-          console.error("订单ID缺失");
-          ElMessage.error("无法加载订单详情，订单ID无效");
-          this.goBack(); // 如果没有ID，则返回
+            ElMessage.error("无法加载订单详情，订单ID无效");
+            this.goBack();
         }
     },
     methods: {
         async fetchOrderDetail() {
             this.loading = true;
             try {
-                // 使用获取到的 orderId 发起请求
                 const response = await this.axios.get(`/api/v1/shopper/orders/${this.orderId}/`);
-
                 if (response.data.state === 'success') {
                     const data = response.data.data;
-                    // 直接赋值，API 结构与 data 属性匹配
                     this.orderInfo = data.order || {};
                     this.orderItems = data.items || [];
                     this.addressInfo = data.address || null;
-                    // console.log("订单信息:", this.orderInfo);
-                    // console.log("商品列表:", this.orderItems);
-                    // console.log("地址信息:", this.addressInfo);
                 } else {
                     ElMessage.error(response.data.msg || '获取订单详情失败');
-                    // 考虑是否在获取失败时也返回列表页
-                    // this.goBack();
                 }
             } catch (error) {
-                console.error('获取订单详情失败:', error);
-                // 检查是否是 404 错误
-                if (error.response && error.response.status === 404) {
-                     ElMessage.error('订单不存在或无法访问');
+                if (error.response?.status === 404) {
+                    ElMessage.error('订单不存在或无法访问');
                 } else {
-                     ElMessage.error('获取订单详情失败，请检查网络或联系管理员');
+                    ElMessage.error('获取订单详情失败，请检查网络');
                 }
-                // 获取失败时也返回，避免停留在空白或错误页面
                 this.goBack();
             } finally {
                 this.loading = false;
             }
         },
-
         formatDateTime(dateTimeString) {
             if (!dateTimeString) return '';
             try {
                 const date = new Date(dateTimeString);
-                // 检查日期是否有效
-                if (isNaN(date.getTime())) {
-                    return dateTimeString; // 如果无效，返回原始字符串
-                }
-                // 根据需要调整格式，这里使用浏览器默认 locale
-                const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-                return date.toLocaleDateString(undefined, options);
-                // 或者只显示日期和时间
-                // return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
-            } catch (e) {
-                console.error("日期格式化错误:", e);
-                return dateTimeString; // 出错时返回原始字符串
+                if (isNaN(date.getTime())) return dateTimeString;
+                return date.toLocaleString();
+            } catch {
+                return dateTimeString;
             }
         },
-
         formatPhone(phone) {
-            // null 或 undefined 检查
             if (phone == null) return '';
-            const phoneStr = String(phone); // 确保是字符串
-            // 使用更健壮的正则，处理不同长度，确保是数字
-            if (/^\d{11}$/.test(phoneStr)) {
-                return phoneStr.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
-            }
-            return phoneStr; // 如果格式不符，返回原始号码
+            const phoneStr = String(phone);
+            return /^\d{11}$/.test(phoneStr) 
+                ? phoneStr.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+                : phoneStr;
         },
-
-        // --- 修改点 ---
         getImagePath(commodity) {
-            // commodity 是 item.commodityInfos_id 对象
-            if (!commodity || !commodity.img) {
-                // 可以返回一个默认占位图的路径
-                // return '/path/to/default/image.png';
-                return '';
-            }
-            // API 返回的 img 已经是 /media/... 的形式，直接使用即可
-            // 浏览器会自动将其解析为相对于当前域名的路径
-            // 确保 Django 服务正确配置了 MEDIA_URL 和 MEDIA_ROOT
-            // 并且开发服务器或生产服务器（如 Nginx）能正确提供 /media/ 下的文件
-            return commodity.img;
+            return commodity?.img || '';
         },
-        // --- 修改结束 ---
-
         getStatusClass(status) {
-            // 这个映射看起来没问题
             const statusMap = {
-                'pending': 'status-pending',
-                'paid': 'status-paid',
-                'shipped': 'status-shipped',
-                'completed': 'status-completed',
-                'refunded': 'status-refunded',
-                'cancelled': 'status-cancelled',
-                '待支付': 'status-pending', // 兼容中文状态
+                '待支付': 'status-pending',
                 '已支付': 'status-paid',
+                '待揽收': 'status-processing',
                 '已发货': 'status-shipped',
-                '已完成': 'status-completed',
-                '已退款': 'status-refunded',
-                '已取消': 'status-cancelled'
+                '已签收': 'status-completed',
+                '退货中': 'status-returning',
+                '退款成功': 'status-refunded'
             };
             return statusMap[status] || 'status-unknown';
         },
-
         getStatusText(status) {
-            // 这个映射也看起来没问题
-            const statusTextMap = {
-                'pending': '待支付',
-                'paid': '已支付',
-                'shipped': '已发货',
-                'completed': '已完成',
-                'refunded': '已退款',
-                'cancelled': '已取消',
-                // 如果后端只返回中文，前面的英文映射可以去掉
-                '待支付': '待支付',
-                '已支付': '已支付',
-                '已发货': '已发货',
-                '已完成': '已完成',
-                '已退款': '已退款',
-                '已取消': '已取消'
-            };
-            return statusTextMap[status] || status || '未知状态'; // 提供一个默认值
+            return status || '未知状态';
         },
-
-        canRefund(status) {
-            // 确保包含了 API 返回的所有可退款状态 ('已支付', '已发货')
-            const refundableStatus = ['paid', 'shipped', '已支付', '已发货'];
-            return refundableStatus.includes(status);
-        },
-
         goBack() {
-            // 确保路由路径正确，/shopper/ 可能是列表页或个人中心
-            this.$router.push('/shopper/'); // 确认这是正确的返回路径
+            this.$router.push('/shopper/');
         },
-
         goToRefund() {
-            // 跳转到退款申请页，传递订单ID
             this.$router.push(`/shopper/refund/${this.orderId}`);
         },
-
         async confirmReceipt() {
             try {
                 await ElMessageBox.confirm(
-                    '您确定已经收到商品了吗？确认后订单状态将变为“已完成”。', // 提示信息更清晰
+                    '您确定已经收到商品了吗？确认后订单状态将变为"已签收"。',
                     '确认收货',
-                    {
-                        confirmButtonText: '确认收到',
-                        cancelButtonText: '还没收到',
-                        type: 'warning'
-                    }
-                ); // confirm 返回 Promise，可以直接 await
-
-                // 用户点击了确认按钮
-                const response = await this.axios.post(`/api/v1/shopper/orders/${this.orderId}/confirm/`); // 确保后端有对应接口处理 POST 请求
-
+                    { confirmButtonText: '确认收到', cancelButtonText: '还没收到', type: 'warning' }
+                );
+                
+                const response = await this.axios.post(`/api/v1/shopper/orders/${this.orderId}/confirm/`);
                 if (response.data.state === 'success') {
-                    ElMessage.success('确认收货成功！订单已完成。');
-                    // 重新获取订单详情以更新状态
+                    ElMessage.success('确认收货成功！');
                     this.fetchOrderDetail();
                 } else {
                     ElMessage.error(response.data.msg || '确认收货失败');
                 }
             } catch (error) {
-                // catch 分支会捕获 ElMessageBox 的取消操作（rejects with 'cancel'）
-                // 和 网络请求错误
-                if (error === 'cancel') {
-                    // ElMessage.info('操作已取消'); // 可以选择性提示
-                } else {
-                    // 网络或后端处理错误
-                    console.error('确认收货失败:', error);
+                if (error !== 'cancel') {
                     ElMessage.error('确认收货操作失败，请稍后重试');
                 }
             }
         }
     }
 }
-
 </script>
 
 <style scoped>

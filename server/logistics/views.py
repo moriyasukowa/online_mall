@@ -4,12 +4,10 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import ProcurementOrder, StockInOrder
+from .models import ProcurementOrder
 from .serializers import PurchaseOrderSerializer
 from .models import OutboundOrder, OutboundOrderItem
 from .serializers import OutboundOrderSerializer, ProcurementOrderSerializer
-from .models import LogisticsOrder
-from .serializers import LogisticsOrderSerializer
 
 class ProcurementOrderViewSet(viewsets.ModelViewSet):
     queryset = ProcurementOrder.objects.prefetch_related('items').all()
@@ -56,38 +54,3 @@ class OutboundOrderViewSet(viewsets.ModelViewSet):
     serializer_class = OutboundOrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-
-    
-class LogisticsOrderViewSet(viewsets.ModelViewSet):
-    queryset = LogisticsOrder.objects.all()
-    serializer_class = LogisticsOrderSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    @action(detail=True, methods=['patch'])
-    def update_status(self, request, pk=None):
-        """更新物流状态（例如发货、签收）"""
-        logistics_order = self.get_object()
-        new_status = request.data.get('status')
-        if new_status not in ['preparing', 'shipped', 'delivered']:
-            return Response({'error': '无效状态'}, status=400)
-        
-        logistics_order.status = new_status
-        if new_status == 'delivered':
-            logistics_order.actual_delivery = timezone.now().date()
-        logistics_order.save()
-        return Response({'status': logistics_order.status})
-    
-from .models import StockInOrder
-from .serializers import StockInOrderSerializer
-
-class StockInOrderViewSet(viewsets.ModelViewSet):
-    queryset = StockInOrder.objects.all()
-    serializer_class = StockInOrderSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def perform_create(self, serializer):
-        """创建入库单时自动更新商品库存"""
-        stock_in_order = serializer.save()
-        commodity = stock_in_order.purchase_order.commodity if stock_in_order.purchase_order else stock_in_order.order_info.commodity
-        commodity.stock += stock_in_order.quantity
-        commodity.save()

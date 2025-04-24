@@ -277,6 +277,16 @@ class LogisticsOrder(models.Model):
         blank=True,
         related_name='logistics_orders'
     )
+
+    order_infos = models.ForeignKey(
+        OrderInfos,
+        on_delete=models.SET_NULL,  # 或 CASCADE
+        verbose_name='关联销售单',
+        null=True,
+        blank=True,
+        related_name='logistics_orders'
+    )
+
     refund_info = models.ForeignKey(
         RefundInfos,
         on_delete=models.SET_NULL,  # 或 CASCADE
@@ -308,7 +318,7 @@ class LogisticsOrder(models.Model):
         if self.purchase_order:
             source = f"采购单: {self.purchase_order.order_number}"
         elif self.outbound_order:
-            source = f"出库单: {self.outbound_order.order_number}"
+            source = f"出库单: {self.outbound_order.order_number}: 销售单: {self.order_infos.id}"
         elif self.refund_info:
             source = f"退款单: {self.refund_info.refund_id}"
         return f"物流单: {self.tracking_number} ({source})"

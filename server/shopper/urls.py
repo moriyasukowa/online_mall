@@ -18,4 +18,6 @@ urlpatterns = [
     path('address/default/', set_default_address, name='set_default_address'),
     path('address/default/get/', get_default_address, name='get_default_address'),
     path('orders/<int:pk>/', OrderDetailView.as_view(), name='order-detail'), # 添加这行
+    path('refunds/<int:order_id>/', get_refund_info, name='refund-detail'), # 添加这行
+    path('refunds/apply/', apply_refund, name='apply_refund')
 ]

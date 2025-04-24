@@ -3,6 +3,7 @@ import time
 from django.contrib.auth import logout, login, authenticate
 from django.shortcuts import get_object_or_404
 from django.views import View
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication
@@ -14,6 +15,7 @@ from .pays import get_pay
 from .serializers import OrderInfosSerializer, CartInfosSerializer, PurchaseInfosSerializer, AddressSerializer
 from .refunds import refund
 from django.db.models import Q
+from shopper.admin import RefundInfosAdmin
 from django.http import Http404, JsonResponse
 
 class MySessionAuthentication(SessionAuthentication):
@@ -85,13 +87,15 @@ class shopperView(APIView):
     authentication_classes = [MySessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
     def get(self, request):
+        print("增加订单信息",request.body)
+
         context = {'state': 'success', 'msg': '获取成功', 'data': {}}
         t = request.GET.get('t', '')
         payTime = request.session.get('payTime', '')
-        print(request.session.get('payInfo', ''))
-        
+        print("支付信息",request.session.get('payInfo', ''))
+        print("支付时间",payTime, "校验时间", t)
         # 从Session获取并处理已支付的订单信息，写入订单信息表
-        if t and payTime and t == payTime:
+        if payTime:
             payInfo = request.session.get('payInfo', '')
             
             # 提取商品项信息并从payInfo中移除，因为OrderInfos表中没有items字段
@@ -200,6 +204,7 @@ class paysView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        print("支付信息",request.body)
         context = {'state': 'fail', 'msg': '支付失败', 'data': ''}
         json_str = json.loads(request.body.decode())
         total = json_str.get('total', 0)
@@ -665,3 +670,160 @@ class AdminOrderDetailView(APIView):
             return Response(context, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ... rest of your views.py code ...
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([MySessionAuthentication, BasicAuthentication])
+def get_refund_info(request, order_id):
+    """获取指定订单的退款信息"""
+    try:
+        # 确保订单属于当前用户
+        order = get_object_or_404(OrderInfos, id=order_id, user=request.user)
+        
+        # 查找与订单关联的退款信息
+        refund = RefundInfos.objects.filter(order=order).first()
+        
+        if refund:
+            # 构建退款信息响应
+            refund_data = {
+                'id': refund.id,
+                'refund_id': refund.refund_id,
+                'price': refund.price,
+                'created': refund.created.strftime('%Y-%m-%d'),
+                'state': refund.state,
+                'reason': refund.reason,
+                'attach': request.build_absolute_uri(refund.attach.url) if refund.attach else None,
+                'status_before': refund.status_before
+            }
+            
+            return JsonResponse({
+                'state': 'success',
+                'data': refund_data
+            })
+        else:
+            # 没有找到退款信息
+            return JsonResponse({
+                'state': 'success',
+                'data': None
+            })
+            
+    except Exception as e:
+        return JsonResponse({
+            'state': 'error',
+            'msg': f'获取退款信息失败: {str(e)}'
+        }, status=500)
+
+def generate_refund_id():
+    """按照Admin后台相同的逻辑生成退款单号"""
+    today = timezone.now().date()
+    date_str = today.strftime('%Y%m%d')
+    
+    last_refund = RefundInfos.objects.filter(
+        refund_id__startswith=f'RF-{date_str}-'
+    ).order_by('-refund_id').first()
+    if last_refund:
+        last_num = int(last_refund.refund_id.split('-')[-1])
+        new_num = last_num + 1
+    else:
+        new_num = 1
+        
+    return f'RF-{date_str}-{new_num:03d}'
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([MySessionAuthentication, BasicAuthentication])
+def apply_refund(request):
+    """提交退款申请"""
+    try:
+        # 获取表单数据
+        order_id = request.POST.get('order_id')
+        price = float(request.POST.get('price', 0))
+        reason = request.POST.get('reason', '')
+        attach_file = request.FILES.get('attach')
+        
+        # 获取订单信息
+        order = get_object_or_404(OrderInfos, id=order_id, user=request.user)
+        
+        # 检查是否已有退款申请
+        existing_refund = RefundInfos.objects.filter(order=order).first()
+        if existing_refund:
+            return JsonResponse({
+                'state': 'error',
+                'msg': '该订单已有退款申请，请勿重复提交'
+            })
+        
+        # 检查退款金额是否合理
+        if price <= 0 or price > order.price:
+            return JsonResponse({
+                'state': 'error',
+                'msg': f'退款金额无效，应在0-{order.price}之间'
+            })
+        
+        # 生成退款单号
+        refund_id = generate_refund_id()
+        
+        # 根据订单状态确定处理方式
+        response_code = 0
+        new_order_state = ''
+        refund_state = ''
+        
+        if order.state in ['待支付', '已支付', '待揽收']:
+            # 直接通过申请
+            new_order_state = '退款成功'
+            refund_state = '退款成功'
+            response_code = 1
+        elif order.state == '已签收':
+            # 提交申请，等待审核
+            new_order_state = '退款成功'
+            refund_state = '退款申请中'
+            response_code = 2
+        else:
+            # 其他状态不允许申请退款
+            return JsonResponse({
+                'state': 'error',
+                'msg': f'当前订单状态"{order.state}"不支持申请退款'
+            })
+        
+        # 保存退款信息
+        refund = RefundInfos(
+            order=order,
+            refund_id=refund_id,
+            price=price,
+            user=request.user,
+            state=refund_state,
+            reason=reason,
+            attach=attach_file,
+            status_before=order.state
+        )
+        refund.save()
+        
+        # 更新订单状态
+        order.state = new_order_state
+        order.refund_id = refund_id
+        order.save()
+        
+        return JsonResponse({
+            'state': 'success',
+            'msg': '退款申请提交成功',
+            'code': response_code,
+            'data': {
+                'refund_id': refund_id,
+                'order_state': new_order_state,
+                'refund_state': refund_state
+            }
+        })
+        
+    except OrderInfos.DoesNotExist:
+        return JsonResponse({
+            'state': 'error',
+            'msg': '订单不存在或不属于当前用户'
+        }, status=404)
+    except ValueError as e:
+        return JsonResponse({
+            'state': 'error',
+            'msg': f'参数错误: {str(e)}'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'state': 'error',
+            'msg': f'退款申请提交失败: {str(e)}'
+        }, status=500)

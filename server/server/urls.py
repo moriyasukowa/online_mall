@@ -4,7 +4,7 @@ from django.views.static import serve
 from django.conf import settings
 from commodity.models import CommodityInfos
 from django.http import JsonResponse
-from logistics.urls import get_procurement_plan
+from logistics.urls import get_outbound_order, get_procurement_plan, get_purchase_order, get_orders_of_outbound_order
 from shopper.models import Region
 from shopper.views import get_sales_order_items, AdminOrderDetailView
 
@@ -46,6 +46,9 @@ urlpatterns = [
     re_path('static/(?P<path>.*)', serve, {'document_root': settings.STATIC_ROOT}, name='static'),
     path('commodity/get_commodity_price/', get_commodity_price, name='get_commodity_price'),
     path('logistics/get_procurement_plan/', get_procurement_plan, name='get_procurement_plan'),
+    path('logistics/get_purchase_order/', get_purchase_order, name='get_purchase_order'),
+    path('logistics/get_outbound_order/', get_outbound_order , name='get_outbound_order'),
+    path('logistics/get_orders_of_outbound_order/', get_orders_of_outbound_order , name='get_orders_of_outbound_order'),
     path('shopper/region_list/', region_list, name='region_list'),
     path('shopper/get-sales-order-items/', get_sales_order_items, name='get_sales_order_items'),
     path('shopper/order-detail/<int:pk>/', AdminOrderDetailView.as_view(), name='order-detail'), # 添加这行

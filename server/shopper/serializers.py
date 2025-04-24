@@ -48,6 +48,5 @@ class PurchaseInfosSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PurchaseInfos
-        fields = '__all__'
+        fields = '__all__'  
         depth = 1  # 嵌套序列化
-        

@@ -452,13 +452,19 @@ class LogisticsOrderAdmin(admin.ModelAdmin):
         css = {
             'all': ('logistics/css/logistics_order.css',
                     'logistics/css/custom_inline.css',
-                    'logistics/css/select_table.css',)
+                    'logistics/css/select_table.css',
+                    'logistics/css/address(dest)_select2-table.css',
+                    'logistics/css/address(origin)_select2-table.css',
+                    )
         }
         js = ('admin/js/vendor/jquery/jquery.js',
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
             'logistics/js/logistics_order.js',
-            'logistics/js/select2_table.js'
+            'logistics/js/select2_table.js',
+            'logistics/js/address(dest)_select_table2.js',
+            'logistics/js/address(origin)_select_table2.js',
+            'logistics/js/autocomplete_logistics_order.js',
             )
 
     form = LogisticsOrderAdminForm
@@ -469,10 +475,46 @@ class LogisticsOrderAdmin(admin.ModelAdmin):
     search_fields = ['tracking_number', 'carrier', 'notes']
     inlines = [LogisticsOrderItemInline]
     
-    fields = ['tracking_number', 'carrier', 'status', 'estimated_delivery', 'created_by', 'source_type', 'purchase_order', 'outbound_order', 'refund_info', 'origin_address', 'destination_address', 'notes']
+    fields = ['tracking_number', 'carrier', 'status', 'estimated_delivery', 'created_by', 'source_type', 'purchase_order', 'outbound_order', 'order_infos', 'refund_info', 'origin_address', 'destination_address', 'notes']
 
-    autocomplete_fields = ['purchase_order', 'outbound_order', 'refund_info']
+    autocomplete_fields = ['purchase_order', 'outbound_order','order_infos', 'refund_info']
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # 处理 order_infos 字段（假设它是外键而非多对多）
+        if db_field.name == "order_infos":
+            # 获取当前表单的 outbound_order 值
+            if request.method == "POST":
+                # 如果是 POST 请求，从提交的数据中获取
+                outbound_order_id = request.POST.get('outbound_order')
+            else:
+                # 如果是 GET 请求，尝试从 URL 参数获取
+                outbound_order_id = request.GET.get('outbound_order')
+            
+            if outbound_order_id:
+                # 根据 outbound_order 筛选关联的订单
+                outbound_order = OutboundOrder.objects.get(id=outbound_order_id)
+                # 假设 outbound_order 有一个方法或属性可以获取关联订单
+                related_orders = outbound_order.get_related_orders()
+                kwargs["queryset"] = OrderInfos.objects.filter(id__in=related_orders)
+            else:
+                # 如果没有选择 outbound_order，则不显示任何订单
+                kwargs["queryset"] = OrderInfos.objects.none()
+                
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
     
+    # 如果需要在编辑现有记录时也正确显示
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        
+        # 如果是编辑现有对象且已有 outbound_order
+        if obj and obj.outbound_order:
+            related_orders = obj.outbound_order.get_related_orders()
+            form.base_fields['order_infos'].queryset = OrderInfos.objects.filter(
+                id__in=related_orders
+            )
+            
+        return form
+    
+    # 添加前端 JavaScript 来动态更新订单选项
     def get_changeform_initial_data(self, request):
         initial = super().get_changeform_initial_data(request)
         initial.update({

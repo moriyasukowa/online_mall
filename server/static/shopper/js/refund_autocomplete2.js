@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const orderData = data.order;
-        console.log('订单数据:', orderData.price); // 调试信息
+        console.log('订单数据:', orderData); // 调试信息
         if (orderData.price !== undefined && orderData.price !== null) {
             total_amount = orderData.price;
             total_amount = parseFloat(total_amount).toFixed(2); // 保留两位小数
@@ -88,11 +88,14 @@ document.addEventListener('DOMContentLoaded', function () {
              $('#id_user').val(null).trigger('change'); // 清空用户选择
         }
 
-        // 你可以在这里添加填充其他字段的逻辑，例如：
-        // - 根据 data.items 填充退款商品信息（如果需要）
-        // - 根据 data.address 填充地址信息（如果需要）
-        // 例如，填充退款原因（如果需要基于订单信息预设）
-        // $('#id_reason').val(`订单 ${orderData.order_sn} 的退款申请`).trigger('change'); // 假设退款原因字段ID是 id_reason
+        if (orderData.state !== undefined && orderData.state !== null) {
+            const statusSelect = $('#id_status_before');
+            if (statusSelect.find("option[value='" + orderData.state + "']").length === 0) {
+                const newOption = new Option(orderData.state, orderData.state, true, true);
+                statusSelect.append(newOption);
+            }
+            statusSelect.val(orderData.state).trigger('change');
+        }
     }
 
     // 清空退款相关字段的函数

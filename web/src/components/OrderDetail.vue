@@ -116,7 +116,16 @@
             </button>
             
             <div class="right-actions">
+                <!-- NEW: 查看退款详情按钮 -->
                 <button 
+                    v-if="orderInfo.state === '退款成功' || orderInfo.state === '退款失败' || orderInfo.state === '退款中' || orderInfo.state === '退货中'"
+                    class="action-button view-refund-button"
+                    @click="goToRefundDetail"
+                >
+                    <i class="el-icon-document"></i> 查看退款详情
+                </button>
+                <button 
+                    v-if="!isRefundRelatedStatus(orderInfo.state)"  
                     class="action-button refund-button"
                     @click="goToRefund"
                 >
@@ -169,6 +178,7 @@ export default {
             this.loading = true;
             try {
                 const response = await this.axios.get(`/api/v1/shopper/orders/${this.orderId}/`);
+                console.log(response.data);
                 if (response.data.state === 'success') {
                     const data = response.data.data;
                     this.orderInfo = data.order || {};
@@ -206,7 +216,8 @@ export default {
                 : phoneStr;
         },
         getImagePath(commodity) {
-            return commodity?.img || '';
+            console.log(commodity.img);
+            return commodity.img || '';
         },
         getStatusClass(status) {
             const statusMap = {
@@ -223,11 +234,31 @@ export default {
         getStatusText(status) {
             return status || '未知状态';
         },
+        isRefundRelatedStatus(status) {
+            return ['退款中', '退货中', '退款成功', '退款失败'].includes(status);
+        },
         goBack() {
-            this.$router.push('/shopper/');
+            this.$router.push('/shopper/'); // Or '/shopper/orders' if that's your list page
         },
         goToRefund() {
+            // Add check for status before navigating
+            if (this.isRefundRelatedStatus(this.orderInfo.state)) {
+                ElMessage.warning(`订单状态为 "${this.orderInfo.state}", 不能重复申请退款`);
+                return;
+            }
+            const allowedStates = ['已支付', '待揽收', '已签收'];
+             if (!allowedStates.includes(this.orderInfo.state)) {
+                ElMessage.warning(`当前订单状态为"${this.orderInfo.state}"，不支持申请退款`);
+                return;
+            }
             this.$router.push(`/shopper/refund/${this.orderId}`);
+        },
+        goToRefundDetail() {
+            if (this.orderId) {
+                this.$router.push(`/shopper/refund/detail/${this.orderId}`); 
+            } else {
+                ElMessage.error("无法查看退款详情，订单ID丢失");
+            }
         },
         async confirmReceipt() {
             try {

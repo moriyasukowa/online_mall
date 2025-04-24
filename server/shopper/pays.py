@@ -26,5 +26,6 @@ def get_pay(out_trade_no, total_amount, return_url):
         return_url=return_url + '?t=' + out_trade_no,
         notify_url=return_url + '?t=' + out_trade_no
     )
-    print('https://openapi-sandbox.dl.alipaydev.com/gateway.do?'+ order_string)
+    
+    print('返回url', return_url + '?t=' + out_trade_no)
     return 'https://openapi-sandbox.dl.alipaydev.com/gateway.do?'+ order_string

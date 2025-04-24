@@ -1,0 +1,65 @@
+/* static/path/to/your/static/admin_destination_address_select2.css */
+
+/* 地址选择结果行 */
+.select2-result-destination_address-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 8px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+.select2-results__option--highlighted .select2-result-destination_address-row {
+    background-color: #5897fb; /* 高亮选项样式 */
+    color: white;
+    border-bottom-color: #4c8efb;
+}
+/* 移除最后一行底边框 */
+.select2-results__option:last-child .select2-result-destination_address-row {
+   border-bottom: none;
+}
+
+/* "列" 样式 */
+.select2-result-destination_address__name {
+    flex: 0 0 100px; /* 固定姓名列宽度 */
+    padding-right: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis; /* 超长时显示省略号 */
+}
+
+.select2-result-destination_address__phone {
+    flex: 0 0 120px; /* 固定电话列宽度 */
+    padding-right: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.select2-result-destination_address__full {
+    flex: 1 1 auto; /* 地址列自动填充剩余空间 */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: left; /* 地址左对齐 */
+}
+
+/* 表头样式 */
+.select2-results__header {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    font-weight: bold;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+    color: #333;
+}
+/* 表头列宽度与数据列保持一致 */
+.select2-results__header .select2-result-destination_address__name { flex: 0 0 100px; }
+.select2-results__header .select2-result-destination_address__phone { flex: 0 0 120px; }
+.select2-results__header .select2-result-destination_address__full { flex: 1 1 auto; text-align: left; }
+
+/* 控制整个下拉框的宽度 */
+.select2-dropdown.destination_address-table-dropdown {
+    min-width: 600px !important; /* 根据需要调整宽度 */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15); /* 可选：添加阴影 */
+}

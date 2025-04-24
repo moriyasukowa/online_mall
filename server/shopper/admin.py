@@ -162,7 +162,7 @@ class RefundInfosAdmin(admin.ModelAdmin):
             'admin/js/vendor/jquery/jquery.js',
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
-            'shopper/js/refund_autocomplete.js',
+            'shopper/js/refund_autocomplete2.js',
             'shopper/js/order_table.js',
         )   
     list_display = ['refund_id', 'created', 'state', 'price', 'reason', 'status_before']

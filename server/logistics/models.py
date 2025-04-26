@@ -159,8 +159,7 @@ class OutboundOrder(models.Model):
         max_length=20,
         choices=[
             ('pending', '待揽收'),
-            ('shipped', '已发货'),
-            ('completed', '已完成'),
+            ('completed', '已完成')
         ],
         default='pending'
     )
@@ -224,8 +223,7 @@ class OutboundOrderItem(models.Model):
 
 
 class LogisticsOrder(models.Model):
-    """物流单（可关联采购、出库或退款）"""
-    tracking_number = models.CharField('物流单号', max_length=50, unique=True)
+    tracking_number = models.CharField('运输单号', max_length=50, unique=True)
     carrier = models.CharField('承运商', max_length=100, default='顺丰速递')
     status = models.CharField(
         '物流状态',
@@ -259,16 +257,6 @@ class LogisticsOrder(models.Model):
         default=11  # 修改默认值的写法
     )
 
-
-    # 关联来源单据 (三选一)
-    purchase_order = models.ForeignKey(
-        PurchaseOrder,
-        on_delete=models.SET_NULL,  # 或 CASCADE，根据业务逻辑决定删除采购单时如何处理物流单
-        verbose_name='关联采购单',
-        null=True,
-        blank=True,
-        related_name='logistics_orders'
-    )
     outbound_order = models.ForeignKey(
         OutboundOrder,
         on_delete=models.SET_NULL,  # 或 CASCADE
@@ -287,60 +275,35 @@ class LogisticsOrder(models.Model):
         related_name='logistics_orders'
     )
 
-    refund_info = models.ForeignKey(
-        RefundInfos,
-        on_delete=models.SET_NULL,  # 或 CASCADE
-        verbose_name='关联退款单',
-        null=True,
-        blank=True,
-        related_name='logistics_orders'
-    )
-
-    def clean(self):
-        """验证必须且仅能关联一个来源单据"""
-        linked_sources = sum([
-            self.purchase_order is not None,
-            self.outbound_order is not None,
-            self.refund_info is not None
-        ])
-        if linked_sources == 0:
-            raise ValidationError("物流单必须关联一个来源单据（采购单、出库单或退款单）")
-        if linked_sources > 1:
-            raise ValidationError("物流单只能关联一个来源单据")
-
     class Meta:
-        verbose_name = '物流单'
-        verbose_name_plural = '物流单'
+        verbose_name = '运输单'
+        verbose_name_plural = '运输单'
         ordering = ['-created_at']
         
     def __str__(self):
         source = ""
-        if self.purchase_order:
-            source = f"采购单: {self.purchase_order.order_number}"
-        elif self.outbound_order:
+        if self.outbound_order:
             source = f"出库单: {self.outbound_order.order_number}: 销售单: {self.order_infos.id}"
-        elif self.refund_info:
-            source = f"退款单: {self.refund_info.refund_id}"
-        return f"物流单: {self.tracking_number} ({source})"
+        return f"运输单: {self.tracking_number} ({source})"
 
     @property
     def total_quantity(self):
-        """计算物流单的总商品数量"""
+        """计算运输单的总商品数量"""
         return sum(item.quantity for item in self.items.all())
 
     @property
     def item_count(self):
-        """返回物流单中商品的种类数"""
+        """返回运输单中商品的种类数"""
         return self.items.values('commodity').distinct().count()
 
 
 class LogisticsOrderItem(models.Model):
-    """物流单商品项"""
+    """运输单商品项"""
     logistics_order = models.ForeignKey(
         LogisticsOrder,
         on_delete=models.CASCADE,
         related_name='items',
-        verbose_name='关联物流单'
+        verbose_name='关联运输单'
     )
     commodity = models.ForeignKey(
         CommodityInfos,
@@ -350,36 +313,36 @@ class LogisticsOrderItem(models.Model):
     quantity = models.PositiveIntegerField('数量')
 
     class Meta:
-        verbose_name = '物流单项'
-        verbose_name_plural = '物流单项'
-        unique_together = ('logistics_order', 'commodity')  # 同一物流单同一商品只有一项
+        verbose_name = '运输单项'
+        verbose_name_plural = '运输单项'
+        unique_together = ('logistics_order', 'commodity')  # 同一运输单同一商品只有一项
 
     def __str__(self):
         return f"{self.logistics_order.tracking_number} - {self.commodity.name} x{self.quantity}"
 
 
-class StockInOrder(models.Model):
-    """入库单（可关联采购单或退款单）"""
-    stock_in_number = models.CharField('入库单号', max_length=50, unique=True)
+class PurchaseStockInOrder(models.Model):
+    """入库单（关联采购单）"""
+    order_number = models.CharField('入库单号', max_length=50, unique=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='操作人')
     created_at = models.DateTimeField('入库时间', default=timezone.now)
+
     notes = models.TextField('备注', blank=True, null=True)
     status = models.CharField(
         '状态',
         max_length=20,
         choices=[
-            ('pending', '待处理'),
             ('completed', '已完成'),
         ],
         default='completed'
     )
 
-    sales_orders = models.ManyToManyField(  # 改为多对多关系
-        LogisticsOrder,
-        related_name='logistics_orders',
-        verbose_name='关联物流单',
+    purchase_orders = models.ManyToManyField(
+        PurchaseOrder,
+        related_name='purchase_stock_in_orders',
+        verbose_name='关联采购订单',
     )
-
+    
     @property
     def total_quantity(self):
         """计算入库单的总入库数量"""
@@ -396,10 +359,10 @@ class StockInOrder(models.Model):
         verbose_name_plural = '入库单'
 
 
-class StockInOrderItem(models.Model):
+class PurchaseStockInOrderItem(models.Model):
     """入库单商品项"""
-    stock_in_order = models.ForeignKey(
-        StockInOrder,
+    order_number = models.ForeignKey(
+        PurchaseStockInOrder,
         on_delete=models.CASCADE,
         related_name='items',
         verbose_name='关联入库单'
@@ -410,13 +373,15 @@ class StockInOrderItem(models.Model):
         verbose_name='商品'
     )
     quantity = models.PositiveIntegerField('入库数量')
-    reason = models.CharField('入库原因', max_length=40, blank=True, null=True)  # 入库原因
 
     class Meta:
         verbose_name = '入库单项'
         verbose_name_plural = '入库单项'
-        unique_together = ('stock_in_order', 'commodity')  # 同一入库单同一商品只有一项
+        unique_together = ('order_number', 'commodity')  # 同一入库单同一商品只有一项
 
     def __str__(self):
-        return f"{self.stock_in_order.stock_in_number} - {self.commodity.name} x{self.quantity}"
+        return f"{self.order_number.order_number} - {self.commodity.name} x{self.quantity}"
+
+
+
 

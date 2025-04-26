@@ -1,0 +1,93 @@
+/* Order Select2 Table Styles - Adapted from Commodity Example */
+
+/* Dropdown container class */
+.select2-dropdown.order-table-dropdown {
+    /* Optional: Set a minimum width if needed */
+    min-width: 550px !important; /* Adjust as necessary */
+    border: 1px solid #aaa; /* Standard border */
+}
+
+/* Header row styles */
+.select2-dropdown.order-table-dropdown .select2-results__header {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px; /* Consistent padding */
+    font-weight: bold;
+    background-color: #f5f5f5; /* Light grey background */
+    border-bottom: 1px solid #ddd;
+    color: #333;
+    position: sticky; /* Keep header visible on scroll */
+    top: 0;
+    z-index: 1; /* Ensure header is above options */
+}
+
+/* Data row styles */
+.select2-dropdown.order-table-dropdown .select2-result-order-row {
+    display: flex; /* Use Flexbox */
+    align-items: center; /* Vertical alignment */
+    padding: 5px 8px; /* Consistent padding */
+    border-bottom: 1px solid #eee; /* Row separator */
+}
+.select2-dropdown.order-table-dropdown .select2-results__option:last-child .select2-result-order-row {
+   border-bottom: none; /* No border for the last item */
+}
+
+/* Highlighted row styles */
+.select2-dropdown.order-table-dropdown .select2-results__option--highlighted .select2-result-order-row {
+    background-color: #5897fb; /* Use highlight color from example */
+    color: white;
+    border-bottom-color: #4c8efb; /* Adjust border for highlighted state */
+}
+/* Ensure text color remains white in highlighted state */
+.select2-dropdown.order-table-dropdown .select2-results__option--highlighted .select2-result-order-row > div {
+    color: white;
+}
+
+
+/* --- Column Definitions --- */
+/* Common styles for all columns (header and data) */
+.select2-results__header > div,
+.select2-result-order-row > div {
+    padding: 0 4px; /* Adjust horizontal padding inside cells */
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ID Column (Header & Data) */
+.select2-result-order__id {
+    flex: 0 0 60px; /* Fixed width, no grow, no shrink */
+    text-align: right;
+}
+
+/* Order Number Column (Header & Data) */
+.select2-result-order__number {
+    flex: 2 1 120px; /* Grow proportionally, basis 120px */
+}
+
+/* Date Column (Header & Data) */
+.select2-result-order__date {
+    flex: 0 0 100px; /* Fixed width */
+    text-align: center;
+}
+
+/* Status Column (Header & Data) */
+.select2-result-order__status {
+    flex: 1 1 80px; /* Grow proportionally, basis 80px */
+    text-align: center;
+}
+
+/* Amount Column (Header & Data) */
+.select2-result-order__amount {
+    flex: 1 1 100px; /* Grow proportionally, basis 100px */
+    text-align: right;
+}
+
+/* Apply flex properties to header columns to match data columns */
+/* (This repeats the flex rules for clarity and specificity if needed) */
+.select2-results__header .select2-result-order__id     { flex: 0 0 60px; }
+.select2-results__header .select2-result-order__number { flex: 2 1 120px; }
+.select2-results__header .select2-result-order__date   { flex: 0 0 100px; }
+.select2-results__header .select2-result-order__status { flex: 1 1 80px; }
+.select2-results__header .select2-result-order__amount { flex: 1 1 100px; }

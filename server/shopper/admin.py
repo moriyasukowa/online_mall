@@ -55,7 +55,6 @@ class OrderInfosAdmin(admin.ModelAdmin):
     inlines = [PurchaseInfosInline]
     date_hierarchy = 'created'
     list_per_page = 20
-    actions = ['mark_as_paid', 'mark_as_shipped']
     fields = ('user', 'state', 'price','pay_id','address',)
     # 自定义方法：显示用户信息
 
@@ -98,16 +97,7 @@ class OrderInfosAdmin(admin.ModelAdmin):
         return format_html(' '.join(buttons))
     order_actions.short_description = '操作'
     order_actions.allow_tags = True
-    
-    def mark_as_paid(self, request, queryset):
-        updated = queryset.filter(state='unpaid').update(state='paid')
-        self.message_user(request, f"{updated}个订单已标记为已支付")
-    mark_as_paid.short_description = "标记选中订单为已支付"
-    # 自定义动作：标记为已发货
-    def mark_as_shipped(self, request, queryset):
-        updated = queryset.filter(state='paid').update(state='shipped')
-        self.message_user(request, f"{updated}个订单已标记为已发货")
-    mark_as_shipped.short_description = "标记选中订单为已发货"
+
     # 获取查询集优化
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('user', 'address')

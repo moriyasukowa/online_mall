@@ -827,3 +827,67 @@ def apply_refund(request):
             'state': 'error',
             'msg': f'退款申请提交失败: {str(e)}'
         }, status=500)
+
+
+def get_customer_order_details(request):
+    """
+    获取客户订单 (OrderInfos) 的详细信息，用于自动填充表单。
+    包括客户的收货地址和关联的商品项 (来自 PurchaseInfos)。
+    """
+    order_id = request.GET.get('order_id') # 从 GET 请求中获取订单 ID
+    if not order_id:
+        return JsonResponse({'error': '未提供订单 ID'}, status=400)
+
+    try:
+        # 1. 查询指定的客户订单，同时预加载关联的地址
+        #    使用 select_related 优化地址查询
+        order = OrderInfos.objects.select_related('address').get(id=order_id)
+
+        # 2. 准备地址信息
+        address_data = None
+        if order.address:
+            address_data = {
+                'id': order.address.id,
+                # 使用地址模型的 __str__ 方法，或自定义更详细的表示
+                'text': str(order.address)
+            }
+
+        # 3. 准备商品项信息 (根据你提供的逻辑修改)
+        #    查询关联的 PurchaseInfos 记录
+        #    使用 select_related 预加载商品信息 (假设 commodityInfos_id 指向商品模型)
+        items_queryset = PurchaseInfos.objects.filter(order=order).select_related('commodityInfos_id') # 使用 select_related('commodityInfos_id') 优化
+
+        items_data = []
+        for item in items_queryset:
+             # 检查关联的商品信息是否存在
+             # 注意：这里的字段名是 commodityInfos_id
+            if item.commodityInfos_id:
+                items_data.append({
+                    # 使用 item.commodityInfos_id.id 获取商品 ID
+                    'commodity_id': item.commodityInfos_id.id,
+                    # 使用 str(item.commodityInfos_id) 或 item.commodityInfos_id.name 获取商品名称/描述
+                    'name': str(item.commodityInfos_id), # 假设商品模型有 __str__ 方法
+                    'quantity': item.quantity,
+                    # 如果需要单价，也可以从 item.unit_price 获取
+                    # 'unit_price': float(item.unit_price) if item.unit_price else 0,
+                })
+            else:
+                print(f"警告: PurchaseInfo ID {item.id} 关联的 commodityInfos_id 为空或无效。") # 调试信息
+
+
+        # 4. 构建完整的响应数据
+        response_data = {
+            'address': address_data, # 包含收货地址信息
+            'items': items_data      # 包含从 PurchaseInfos 获取的商品项列表
+        }
+        return JsonResponse(response_data)
+
+    except OrderInfos.DoesNotExist:
+        return JsonResponse({'error': '客户订单不存在'}, status=404)
+    # 可以保留之前的其他异常捕获
+    except Exception as e:
+        print(f"获取客户订单详情时出错: {e}") # 记录日志
+        import traceback
+        traceback.print_exc() # 打印详细的错误堆栈
+        return JsonResponse({'error': f'发生服务器内部错误: {e}'}, status=500)
+

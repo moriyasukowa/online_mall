@@ -15,7 +15,7 @@ npm run dev
 
 ```bash
 cd server
-python manage.py 
+python manage.py runserver 8888
 ```
 
 ## 2. 迁移 Django 数据库
@@ -28,6 +28,6 @@ python manage.py migrate
 ## 3. 上传到 GitHub
 ```bash
 git add .
-git commit -m "4.24 退款功能"
+git commit -m "4.26 入库"
 git push origin main
 ```

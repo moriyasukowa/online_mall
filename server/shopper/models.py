@@ -1,6 +1,7 @@
 from django.db import models
 from commodity.models import CommodityInfos
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 STATE = (
     ('待支付', '待支付'),
@@ -131,3 +132,64 @@ class AddressInfos(models.Model):
         
     def __str__(self):
         return f"{self.province}{self.city}{self.district}{self.detail}"
+    
+class RefundStockInOrder(models.Model):
+    """入库单（关联退款单）"""
+    order_number = models.CharField('入库单号', max_length=50, unique=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='操作人')
+    created_at = models.DateTimeField('入库时间', default=timezone.now)
+
+    notes = models.TextField('备注', blank=True, null=True)
+    status = models.CharField(
+        '状态',
+        max_length=20,
+        choices=[
+            ('completed', '已完成'),
+        ],
+        default='completed'
+    )
+
+    refund_orders = models.ManyToManyField(
+        RefundInfos,
+        related_name='refund_stock_in_orders',
+        verbose_name='关联退款单',
+    )
+    
+    @property
+    def total_quantity(self):
+        """计算入库单的总入库数量"""
+        return sum(item.quantity for item in self.items.all())
+
+    @property
+    def item_count(self):
+        """返回入库单中商品的种类数"""
+        return self.items.values('commodity').distinct().count()
+    
+    
+    class Meta:
+        verbose_name = '入库单'
+        verbose_name_plural = '入库单'
+
+
+class RefundStockInOrderItem(models.Model):
+    """入库单商品项"""
+    order_number = models.ForeignKey(
+        RefundStockInOrder,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name='关联入库单'
+    )
+    commodity = models.ForeignKey(
+        CommodityInfos,
+        on_delete=models.PROTECT,
+        verbose_name='商品'
+    )
+    quantity = models.PositiveIntegerField('入库数量')
+
+    class Meta:
+        verbose_name = '入库单项'
+        verbose_name_plural = '入库单项'
+        unique_together = ('order_number', 'commodity')  # 同一入库单同一商品只有一项
+
+    def __str__(self):
+        return f"{self.order_number.order_number} - {self.commodity.name} x{self.quantity}"

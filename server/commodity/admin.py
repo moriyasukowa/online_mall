@@ -18,17 +18,6 @@ class TypesAdmin(admin.ModelAdmin):
     list_filter = ['firsts']
     list_editable = ['firsts', 'seconds']
 
-# @admin.register(CommodityInfos)
-# class CommodityInfosAdmin(admin.ModelAdmin):
-#     list_display = [x for x in list(CommodityInfos._meta._forward_fields_map.keys())]
-#     search_fields = ['name']
-#     date_hierarchy = 'created'
-#
-#     def formfield_for_dbfield(self, db_field, **kwargs):
-#         if db_field.name == 'types':
-#             db_field.choices = [(x['seconds'], x['seconds'])for x in Types.objects.values('seconds')]
-#         return super().formfield_for_dbfield(db_field, **kwargs)
-
 @admin.register(CommodityInfos)
 class CommodityInfosAdmin(admin.ModelAdmin):
     # 改变数据新增页或数据修改页的网页布局
@@ -59,7 +48,7 @@ class CommodityInfosAdmin(admin.ModelAdmin):
 
     list_max_show_all = 200
 
-    list_editable = ['name','sezes','types','price','discount','img','details']
+    list_editable = ['price','discount','img','details']
 
     search_fields = ['name', 'types']
 
@@ -141,3 +130,4 @@ class CommodityInfosAdmin(admin.ModelAdmin):
         # Select2 需要 'results' 键
         # Django autocomplete 通常不需要 pagination key，但 Select2 Ajax 可以用
         return JsonResponse({"results": results})
+    

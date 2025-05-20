@@ -23,7 +23,7 @@
                 ajax: {
                     url: adminUrl,
                     dataType: 'json',
-                    delay: $(element).data('ajax--delay') || 20,
+                    delay: $(element).data('ajax--delay') || 2,
                     cache: $(element).data('ajax--cache') || true,
                     data: function(params) {
                         return {
@@ -117,7 +117,7 @@
                     if (node.nodeType === 1) {
                         const newSelects = $(node).find(selectElementSelector);
                         newSelects.each(function() {
-                            setTimeout(() => reinitializeCommoditySelect2(this), 0);
+                            setTimeout(() => reinitializeCommoditySelect2(this), 2);
                         });
                     }
                 });
@@ -140,7 +140,7 @@
         $(document).on('formset:added', inlineGroupId, function(event, $row, formsetName) {
             const newSelects = $row.find(selectElementSelector);
             newSelects.each(function() {
-                setTimeout(() => reinitializeCommoditySelect2(this), 0);
+                setTimeout(() => reinitializeCommoditySelect2(this), 1);
             });
         });
     });

@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.forms import ValidationError
 from .models import *
 from django.contrib import messages
 from django.urls import path, reverse
@@ -6,7 +7,7 @@ from django.http import HttpResponseRedirect
 from django.utils.html import format_html
 from shopper.form import AddressInfosForm
 from django.utils import timezone
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 class PurchaseInfosInline(admin.TabularInline):
     model = PurchaseInfos
@@ -48,7 +49,7 @@ class OrderInfosAdmin(admin.ModelAdmin):
             'shopper/js/cal_price.js',
             'shopper/js/address_select_table2.js',
         )
-    list_display = ('id', 'user_info', 'price', 'state_display', 'created', 'order_actions')
+    list_display = ('id', 'user_info', 'price', 'state', 'created', 'address')
     list_filter = ('state', 'created')
     search_fields = ('id', 'user__username', 'pay_id')
     autocomplete_fields = ['address']
@@ -56,6 +57,7 @@ class OrderInfosAdmin(admin.ModelAdmin):
     date_hierarchy = 'created'
     list_per_page = 20
     fields = ('user', 'state', 'price','pay_id','address',)
+    list_editable = ('state', 'address')
     # 自定义方法：显示用户信息
 
     def user_info(self, obj):
@@ -269,3 +271,170 @@ class CartInfosAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         # Optimize query by prefetching related user and commodity info
         return super().get_queryset(request).select_related('user', 'commodityInfos_id')
+class RefundStockInOrderItemInline(admin.TabularInline):
+    class Media:
+        css = {
+            'all': (
+                'admin/css/vendor/select2/select2.css',
+                'admin/css/vendor/select2/select2.min.css',
+                'logistics/css/select_table.css',
+            )
+        }
+        js = (
+            'admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+            'logistics/js/select2_table.js',
+        )
+    model = RefundStockInOrderItem
+    extra = 1
+    autocomplete_fields = ['commodity']
+    fields = ['commodity', 'quantity']
+    min_num = 1
+    verbose_name = "入库单商品项"
+    verbose_name_plural = "入库单商品项"
+@admin.register(RefundStockInOrder)
+class RefundStockInOrderAdmin(admin.ModelAdmin):
+    class Media:
+        css = {
+            'all': (
+                    'logistics/css/custom_inline.css',
+                    'logistics/css/custom_filter_horizontal.css',
+                    'logistics/css/inbound_custom.css',)
+        }
+        js = ('admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+            'logistics/js/pinbound_custom.js',
+            'logistics/js/inbound_complete.js',
+            )
+        
+    list_display = ['order_number', 'status', 'created_by', 'created_at', 
+                    'total_quantity', 'item_count']
+    list_filter = ['status', 'created_at', 'created_by']
+    search_fields = ['order_number', 'notes']
+    autocomplete_fields = ['refund_orders'] 
+    inlines = [RefundStockInOrderItemInline]
+    fields = ['order_number', 'status', 'created_by', 'created_at','refund_orders','notes']
+
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        initial.update({
+            'created_by': request.user,
+            'order_number': self.generate_initial_order_number(request)
+        })
+        return initial
+
+    def generate_initial_order_number(self, request):
+        today = timezone.now().date()
+        date_str = today.strftime('%Y%m%d')
+        last_order = RefundStockInOrder.objects.filter(order_number__startswith=f'PSO-{date_str}-').order_by('-order_number').first()
+        if last_order:
+            last_num = int(last_order.order_number.split('-')[-1])
+            new_num = last_num + 1
+        else:
+            new_num = 1
+        return f'PSO-{date_str}-{new_num:03d}'
+    
+    def item_count(self, obj):
+        return obj.item_count
+    item_count.short_description = '商品种类数'
+
+    def total_quantity(self, obj):
+        return obj.total_quantity
+    total_quantity.short_description = '总出库数量'
+
+    def save_model(self, request, obj, form, change):
+        with transaction.atomic():
+            # 先保存出库单（但不提交事务）
+            super().save_model(request, obj, form, change)
+            
+            # 获取表单中提交的销售订单ID列表
+            if 'refund_orders' in form.cleaned_data:
+                purchase_order_ids = [order.order_number for order in form.cleaned_data['refund_orders']]
+                
+                # 更新这些订单的状态
+                updated_count = OrderInfos.objects.filter(
+                    order_number__in=purchase_order_ids
+                ).update(state='completed')
+                
+                # 添加操作成功的消息
+                messages.success(
+                    request, 
+                    f'成功创建入库单，并更新其关联的{updated_count}采购单状态为"已完成"'
+                )
+                
+                # 确保多对多关系被保存（Django通常会自动处理）
+                form.save_m2m()
+            else:
+                messages.warning(
+                    request, 
+                    '出库单创建成功，但没有关联任何销售订单'
+                )
+
+    # --- save_related for inventory increase and PO status update ---
+    def save_related(self, request, form, formsets, change):
+
+        super().save_related(request, form, formsets, change)
+
+        obj = form.instance
+
+        items_to_process = obj.items.all() # IMPORTANT: Check related_name
+
+
+
+        if not items_to_process.exists():
+            messages.warning(request, f"入库单 {obj.order_number} 没有包含任何商品明细，未执行库存增加或采购单状态更新。")
+            return # Exit if no items
+
+        try:
+            with transaction.atomic():
+                # --- Inventory Increase Logic ---
+                commodities_to_update = []
+                processed_commodity_ids = set()
+
+                for item in items_to_process:
+                    commodity_id = item.commodity_id
+                    quantity_to_increase = item.quantity # Use the correct name
+
+                    if not commodity_id or quantity_to_increase <= 0:
+                        continue
+
+                    # Optional: handle multiple lines for same commodity if needed
+                    if commodity_id in processed_commodity_ids:
+                        # If you sum quantities *before* locking, lock only once.
+                        # For simplicity here, we process each line but lock once per commodity.
+                        pass
+
+                    try:
+                        # Lock the commodity row for update
+                        commodity_record = CommodityInfos.objects.select_for_update().get(id=commodity_id)
+
+                        # Increase inventory
+                        commodity_record.inventory += quantity_to_increase
+                        commodities_to_update.append(commodity_record)
+                        processed_commodity_ids.add(commodity_id)
+
+                    except CommodityInfos.DoesNotExist:
+                        # This indicates a data integrity issue
+                        raise ValidationError(
+                            f"无法找到 ID 为 {commodity_id} 的商品信息，无法入库 "
+                            f"(来自入库单: {obj.order_number})"
+                        )
+
+                # --- Bulk update inventory ---
+                if commodities_to_update:
+                    CommodityInfos.objects.bulk_update(commodities_to_update, ['inventory'])
+                    messages.success(request, f"成功更新了 {len(processed_commodity_ids)} 种商品的库存。")
+                    
+        except ValidationError as e:
+            messages.error(request, f"处理入库单关联操作失败（库存或订单状态）：{e}")
+        except IntegrityError as e:
+            messages.error(request, f"数据库错误，处理关联操作失败：{e}")
+        except Exception as e:
+            messages.error(request, f"发生意外错误，处理关联操作失败：{e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in save_related for purchase stock in order {obj.order_number}: {e}", exc_info=True)
+    

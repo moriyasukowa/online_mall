@@ -6,7 +6,7 @@ from commodity.models import CommodityInfos
 from django.http import JsonResponse
 from logistics.urls import get_outbound_order, get_procurement_plan, get_purchase_order, get_orders_of_outbound_order
 from shopper.models import Region
-from shopper.views import get_sales_order_items, AdminOrderDetailView, get_customer_order_details
+from shopper.views import get_purchase_order_items, get_sales_order_items, AdminOrderDetailView, get_customer_order_details
 from logistics.models import OutboundOrder
 from django.db.models import Q
 
@@ -90,6 +90,7 @@ urlpatterns = [
     path('logistics/get_orders_of_outbound_order/', get_orders_of_outbound_order , name='get_orders_of_outbound_order'),
     path('shopper/region_list/', region_list, name='region_list'),
     path('shopper/get-sales-order-items/', get_sales_order_items, name='get_sales_order_items'),
+    path('shopper/get-purchase-order-items/', get_purchase_order_items, name='get_purchase_order_items'),
     path('shopper/order-detail/<int:pk>/', AdminOrderDetailView.as_view(), name='order-detail'), # 添加这行
     path('logistics/get-related-orders/', get_related_orders, name='get_related_orders'),
     path('shopper/get_customer_order_details/', get_customer_order_details, name='get_customer_order_details'),

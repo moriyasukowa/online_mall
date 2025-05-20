@@ -2,7 +2,8 @@ from urllib.parse import urlparse
 from django.contrib import admin
 from django.forms import ValidationError
 from django.shortcuts import redirect
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from commodity.models import CommodityInfos
 from shopper.models import OrderInfos
 from .models import ProcurementOrder, OutboundOrder, PurchaseOrder, PurchaseOrderItem,ProcurementOrderItem, OutboundOrderItem, LogisticsOrder, LogisticsOrderItem, PurchaseStockInOrder, PurchaseStockInOrderItem
 from django.contrib import admin
@@ -231,21 +232,6 @@ class PurchaseOrderItemInline(admin.TabularInline):
 @admin.register(PurchaseOrder)
 class PurchaseOrderAdmin(admin.ModelAdmin):
 
-    class Media:
-        css = {
-            'all': (
-                'logistics/css/custom_inline1.css',
-                'admin/css/vendor/select2/select2.css',
-                'admin/css/vendor/select2/select2.min.css',
-            )
-        }
-        js = (
-            'admin/js/vendor/jquery/jquery.js',
-            'admin/js/vendor/select2/select2.full.js',
-            'admin/js/jquery.init.js',
-            'logistics/js/autocomplete_order2.js',
-        )
-    # 基础列表显示配置
     list_per_page = 10
     list_max_show_all = 200
     preserve_filters = True
@@ -321,6 +307,20 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
                 plan.status = 'approved'
                 plan.save(update_fields=['status']) # 只更新 status 字段
                 self.message_user(request, f"采购计划 '{plan.order_number}' 状态已更新为 '已批准'。", messages.SUCCESS)
+    class Media:
+        css = {
+            'all': (
+                'logistics/css/custom_inline1.css',
+                'admin/css/vendor/select2/select2.css',
+                'admin/css/vendor/select2/select2.min.css',
+            )
+        }
+        js = (
+            'admin/js/vendor/jquery/jquery.js',
+            'admin/js/vendor/select2/select2.full.js',
+            'admin/js/jquery.init.js',
+            'logistics/js/autocomplete_order2.js',
+        )
 
 
 class OutboundOrderItemInline(admin.TabularInline):
@@ -438,6 +438,109 @@ class OutboundOrderAdmin(admin.ModelAdmin):
                     request, 
                     '出库单创建成功，但没有关联任何销售订单'
                 )
+    def save_related(self, request, form, formsets, change):
+        """
+        在主对象和所有 formsets (包括 Inlines) 保存后调用。
+        处理库存扣减和关联订单状态更新。
+        """
+        # 1. 首先调用父类的方法，确保默认的 M2M 等关联关系被保存
+        super().save_related(request, form, formsets, change)
+
+        # 2. 获取已保存的 OutboundOrder 实例
+        obj = form.instance
+
+        # 3. 获取关联的 OutboundOrderItem (现在应该能获取到了)
+        items_to_process = obj.items.all()
+
+        # 4. 检查是否有明细，如果没有则无需后续处理
+        if not items_to_process:
+            # 这里可以根据业务决定是否需要警告。
+            # 如果是在 save_model 后立刻调用 save_related，可能还没有items
+            # 但Django admin的标准流程是formsets保存后再调用save_related
+            # 为保险起见，先检查一遍
+            if not obj.items.exists(): # 再次确认数据库中是否存在
+                 messages.warning(request, f"出库单 {obj.order_number} 最终没有包含任何商品明细，未执行库存扣减或销售订单状态更新。")
+                 return
+
+        # 5. 在事务中执行库存和订单状态更新逻辑
+        try:
+            with transaction.atomic():
+                # --- 库存检查与扣减逻辑 ---
+                commodities_to_update = []
+                processed_commodity_ids = set() # 用于跟踪已处理的商品ID
+
+                # 重新获取一次 items，确保拿到的是事务内最新的数据
+                current_items = obj.items.all()
+                if not current_items.exists(): # 再次检查，以防万一
+                     messages.warning(request, f"出库单 {obj.order_number} 保存关联项后仍无商品明细，跳过后续处理。")
+                     return # 明确退出
+
+
+                for item in current_items:
+                    commodity_id = item.commodity_id
+                    quantity_to_deduct = item.quantity
+
+                    if not commodity_id or quantity_to_deduct <= 0:
+                        continue
+
+                    # 避免重复处理同一商品ID（如果允许合并计算则需修改）
+                    if commodity_id in processed_commodity_ids:
+                        continue
+
+                    try:
+                        # 查询并锁定商品库存记录
+                        commodity_record = CommodityInfos.objects.select_for_update().get(id=commodity_id)
+
+                        if commodity_record.inventory < quantity_to_deduct:
+                            raise ValidationError(
+                                f"商品 '{commodity_record.name}' (ID: {commodity_id}) 库存不足。 "
+                                f"当前库存: {commodity_record.inventory}, 本次出库需要: {quantity_to_deduct} "
+                                f"(来自出库单: {obj.order_number})"
+                            )
+
+                        commodity_record.inventory -= quantity_to_deduct
+                        commodities_to_update.append(commodity_record)
+                        processed_commodity_ids.add(commodity_id)
+
+                    except CommodityInfos.DoesNotExist:
+                        raise ValidationError(
+                            f"无法找到 ID 为 {commodity_id} 的商品信息，无法出库 "
+                            f"(来自出库单: {obj.order_number})"
+                        )
+
+                # --- 批量更新商品库存 ---
+                if commodities_to_update:
+                    CommodityInfos.objects.bulk_update(commodities_to_update, ['inventory'])
+                    messages.success(request, f"成功更新了 {len(processed_commodity_ids)} 种商品的库存。")
+
+                # --- 更新关联销售订单的状态 ---
+                # M2M关系应已由 super().save_related() 或Django默认机制保存
+                sales_orders_qs = obj.sales_orders.all() # 直接从已保存的对象获取关联订单
+                if sales_orders_qs.exists():
+                    sales_order_ids = list(sales_orders_qs.values_list('id', flat=True))
+
+                    # 更新状态，假设从'已支付'变为'待揽收'
+                    updated_count = OrderInfos.objects.filter(
+                        id__in=sales_order_ids,
+                        state='已支付' # 原始状态
+                    ).update(state='待揽收') # 目标状态 (与OutboundOrder的status choices匹配?)
+
+                    if updated_count > 0:
+                        messages.success(request, f'成功更新了 {updated_count} 个关联销售订单的状态为 "待揽收"。')
+                    # else: # 可以选择性地添加警告，如果没更新任何订单
+                    #     messages.warning(request, f'尝试更新 {len(sales_order_ids)} 个关联销售订单状态，但没有订单处于可更新状态（例如，状态不是 "已支付"）。')
+
+        except ValidationError as e:
+            messages.error(request, f"处理出库单关联操作失败（库存或订单状态）：{e}")
+            # 注意：主对象和Inline可能已保存，此错误不自动回滚整个Admin保存过程
+        except IntegrityError as e:
+            messages.error(request, f"数据库错误，处理关联操作失败：{e}")
+        except Exception as e:
+            messages.error(request, f"发生意外错误，处理关联操作失败：{e}")
+            # 添加日志记录
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in save_related for outbound order {obj.order_number}: {e}", exc_info=True)
 class LogisticsOrderItemInline(admin.TabularInline):
     class Media:
         css = {
@@ -488,11 +591,19 @@ class LogisticsOrderAdmin(admin.ModelAdmin):
     list_filter = ['status', 'carrier', 'created_at']
     search_fields = ['tracking_number', 'carrier', 'notes']
     inlines = [LogisticsOrderItemInline]
+    list_editable = ['status']
     
     fields = ['tracking_number', 'carrier', 'status', 'estimated_delivery', 'created_by', 'outbound_order', 'order_infos', 'origin_address', 'destination_address', 'notes']
 
     autocomplete_fields = ['outbound_order']
 
+    def item_count(self, obj):
+        return obj.item_count
+    item_count.short_description = '商品种类数'
+
+    def total_quantity(self, obj):
+        return obj.total_quantity
+    total_quantity.short_description = '总出库数量'
     def get_changeform_initial_data(self, request):
         initial = super().get_changeform_initial_data(request)
         initial.update({
@@ -592,21 +703,29 @@ class PurchaseStockInOrderAdmin(admin.ModelAdmin):
         css = {
             'all': (
                     'logistics/css/custom_inline.css',
-                    'logistics/css/custom_filter_horizontal.css')
+                    'logistics/css/custom_filter_horizontal.css',
+                    'logistics/css/inbound_custom.css',)
         }
         js = ('admin/js/vendor/jquery/jquery.js',
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
-            'logistics/js/custom_filter_horizontal.js',
+            'logistics/js/pinbound_custom.js',
+            'logistics/js/inbound_complete.js',
             )
+        
     list_display = ['order_number', 'status', 'created_by', 'created_at', 
                     'total_quantity', 'item_count']
     list_filter = ['status', 'created_at', 'created_by']
     search_fields = ['order_number', 'notes']
     filter_horizontal = ['purchase_orders'] 
-    readonly_fields = ['created_at']
     inlines = [PurchaseStockInOrderItemInline]
     fields = ['order_number', 'status', 'created_by', 'created_at','purchase_orders','notes']
+
+    # 限制只显示待支付的订单
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "purchase_orders":
+            kwargs["queryset"] = PurchaseOrder.objects.filter(status='pending')
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     def get_changeform_initial_data(self, request):
         initial = super().get_changeform_initial_data(request)
@@ -627,5 +746,104 @@ class PurchaseStockInOrderAdmin(admin.ModelAdmin):
             new_num = 1
         return f'PSO-{date_str}-{new_num:03d}'
     
-    
+    def item_count(self, obj):
+        return obj.item_count
+    item_count.short_description = '商品种类数'
+
+    def total_quantity(self, obj):
+        return obj.total_quantity
+    total_quantity.short_description = '总出库数量'
+
+    def save_model(self, request, obj, form, change):
+        with transaction.atomic():
+            # 先保存出库单（但不提交事务）
+            super().save_model(request, obj, form, change)
+            
+            # 获取表单中提交的销售订单ID列表
+            if 'purchase_orders' in form.cleaned_data:
+                purchase_order_ids = [order.order_number for order in form.cleaned_data['purchase_orders']]
+                
+                # 更新这些订单的状态
+                updated_count = OrderInfos.objects.filter(
+                    order_number__in=purchase_order_ids
+                ).update(state='completed')
+                
+                # 添加操作成功的消息
+                messages.success(
+                    request, 
+                    f'成功创建入库单，并更新其关联的{updated_count}采购单状态为"已完成"'
+                )
+                
+                # 确保多对多关系被保存（Django通常会自动处理）
+                form.save_m2m()
+            else:
+                messages.warning(
+                    request, 
+                    '出库单创建成功，但没有关联任何销售订单'
+                )
+
+    # --- save_related for inventory increase and PO status update ---
+    def save_related(self, request, form, formsets, change):
+
+        super().save_related(request, form, formsets, change)
+
+        obj = form.instance
+
+        items_to_process = obj.items.all() # IMPORTANT: Check related_name
+
+
+
+        if not items_to_process.exists():
+            messages.warning(request, f"入库单 {obj.order_number} 没有包含任何商品明细，未执行库存增加或采购单状态更新。")
+            return # Exit if no items
+
+        try:
+            with transaction.atomic():
+                # --- Inventory Increase Logic ---
+                commodities_to_update = []
+                processed_commodity_ids = set()
+
+                for item in items_to_process:
+                    commodity_id = item.commodity_id
+                    quantity_to_increase = item.quantity # Use the correct name
+
+                    if not commodity_id or quantity_to_increase <= 0:
+                        continue
+
+                    # Optional: handle multiple lines for same commodity if needed
+                    if commodity_id in processed_commodity_ids:
+                        # If you sum quantities *before* locking, lock only once.
+                        # For simplicity here, we process each line but lock once per commodity.
+                        pass
+
+                    try:
+                        # Lock the commodity row for update
+                        commodity_record = CommodityInfos.objects.select_for_update().get(id=commodity_id)
+
+                        # Increase inventory
+                        commodity_record.inventory += quantity_to_increase
+                        commodities_to_update.append(commodity_record)
+                        processed_commodity_ids.add(commodity_id)
+
+                    except CommodityInfos.DoesNotExist:
+                        # This indicates a data integrity issue
+                        raise ValidationError(
+                            f"无法找到 ID 为 {commodity_id} 的商品信息，无法入库 "
+                            f"(来自入库单: {obj.order_number})"
+                        )
+
+                # --- Bulk update inventory ---
+                if commodities_to_update:
+                    CommodityInfos.objects.bulk_update(commodities_to_update, ['inventory'])
+                    messages.success(request, f"成功更新了 {len(processed_commodity_ids)} 种商品的库存。")
+                    
+        except ValidationError as e:
+            messages.error(request, f"处理入库单关联操作失败（库存或订单状态）：{e}")
+        except IntegrityError as e:
+            messages.error(request, f"数据库错误，处理关联操作失败：{e}")
+        except Exception as e:
+            messages.error(request, f"发生意外错误，处理关联操作失败：{e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in save_related for purchase stock in order {obj.order_number}: {e}", exc_info=True)
     

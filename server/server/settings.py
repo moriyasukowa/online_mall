@@ -38,7 +38,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     # 添加中间件LocaleMiddleware
-    'django.middleware.locale.LocaleMiddleware',
+    # 'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -97,14 +97,16 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
+TIME_ZONE = 'Asia/Shanghai'
+LANGUAGE_CODE = 'zh-Hans'
 USE_I18N = True
-
-USE_TZ = True
+USE_TZ = False
 import os
+
+# 新增：定义翻译文件存放的目录
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
 
 STATIC_URL = '/static/'
 # 开发环境静态文件目录
@@ -114,7 +116,11 @@ STATICFILES_DIRS = [
 # 生产环境收集目录（保持原样）
 STATIC_ROOT = os.path.join(BASE_DIR, '\static_root')
 
+LANGUAGES = [  
 
+    ('en', ('English')),  
+
+    ('zh-hans', ('简体中文')),]
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, '\media')
 
@@ -161,9 +167,7 @@ CORS_ALLOW_HEADERS = (
     'x-csrftoken',
     'x-requested-with',
 )
-USE_TZ = False
-TIME_ZONE = 'Asia/Shanghai'
-LANGUAGE_CODE = 'zh-hans'
+
 
 # settings.py
 ALIPAY_CONFIG = {

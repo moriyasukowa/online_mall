@@ -9,7 +9,7 @@ npm run dev
 
 ```
 采购计划->采购单->入库单
-客户订单->出库单->物流单
+客户订单->出库单->运输单
 客户订单->退款申请->入库单
 
 
@@ -28,6 +28,6 @@ python manage.py migrate
 ## 3. 上传到 GitHub
 ```bash
 git add .
-git commit -m "4.26 入库"
+git commit -m "答辩前更新AI客服和登录注册页面"
 git push origin main
 ```

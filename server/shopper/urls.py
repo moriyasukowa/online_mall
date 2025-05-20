@@ -3,7 +3,8 @@ from .views import *
 
 
 urlpatterns = [
-    path('login/', loginView.as_view(), name='login'),
+    path('login/', LoginView.as_view(), name='login'),
+    path('register/', RegisterView.as_view(), name='register'),
     path('logout/', logoutView.as_view(), name='logout'),
     path('home/', shopperView.as_view(), name='home'),
     path('shopcart/', shopcartView.as_view(), name='shopcart'),
@@ -19,5 +20,6 @@ urlpatterns = [
     path('address/default/get/', get_default_address, name='get_default_address'),
     path('orders/<int:pk>/', OrderDetailView.as_view(), name='order-detail'), # 添加这行
     path('refunds/<int:order_id>/', get_refund_info, name='refund-detail'), # 添加这行
-    path('refunds/apply/', apply_refund, name='apply_refund')
+    path('refunds/apply/', apply_refund, name='apply_refund'),
+    path('orders/<int:order_id>/confirm/', confirm_order_delivery,name='confirm-order-delivery'),
 ]

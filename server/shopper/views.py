@@ -28,40 +28,102 @@ class MySessionAuthentication(SessionAuthentication):
             return None
         return (user, None)
 
-
-class loginView(APIView):
+class LoginView(APIView):
     '''
-    用户登录与注册
+    用户登录视图
+    接收 POST 请求: {'username': 'xxx', 'password': 'yyy'}
     '''
-    # 取消所有认证
+    authentication_classes = []  # 通常登录接口不需要预认证
+    permission_classes = []      # 公开访问
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        context = {'state': 'fail', 'msg': '登录失败'}
+        if not username or not password:
+            context['msg'] = '用户名和密码不能为空'
+            return Response(context, status=400) # Bad Request
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            if user.is_active:
+                login(request, user)
+                # 更新 last_login 时间戳 (Django 会在 authenticate 成功时自动更新)
+                # user.last_login = timezone.now() # Django 1.10+ 自动处理
+                # user.save(update_fields=['last_login'])
+                
+                # 确保 last_login 存在并且格式化 (前端可能需要特定格式)
+                last_login_str = user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else ''
+                
+                context = {
+                    'state': 'success',
+                    'msg': '登录成功',
+                    'username': user.username,
+                    'last_login': last_login_str
+                }
+                return Response(context)
+            else:
+                context['msg'] = '账户已被禁用'
+                return Response(context, status=403) # Forbidden
+        else:
+            context['msg'] = '用户名或密码错误'
+            return Response(context, status=401) # Unauthorized (more specific than 400)
+class RegisterView(APIView):
+    '''
+    用户注册视图
+    接收 POST 请求: {'username': 'xxx', 'password': 'yyy', 'password2': 'yyy'}
+    前端还会发送 captcha_code 和 captcha_text，但根据你的要求后端简化逻辑，暂时不处理验证码
+    '''
     authentication_classes = []
     permission_classes = []
-
     def post(self, request):
-        context = {'state': 'fail', 'msg': '注册或登录失败'}
-        json_str = json.loads(request.body.decode())
-        infos = LoginModelForm(data=json_str)
-        d = infos.data
-        username = d['username']
-        password = d['password']
-        last_login = ''
-        # 用户存在则进行登录验证
-        if User.objects.filter(username=username).first():
-            user = authenticate(username=username, password=password)
-            if user:
-                login(request, user)
-                last_login = user.last_login
-                context = {'state': 'success', 'msg': '登录成功'}
-        else:
-            # 用户不存在进行用户注册
-            context = {'state': 'success', 'msg': '注册成功'}
-            d = dict(username=username, password=password, is_staff=1, is_active=1)
-            user = User.objects.create_user(**d)
-            user.save()
+        username = request.data.get('username')
+        password = request.data.get('password')
+        password2 = request.data.get('password2') # 从前端 Register.vue 获取
+        # captcha_code = request.data.get('captcha_code') # 预留给验证码
+        # captcha_text = request.data.get('captcha_text') # 预留给验证码
+        context = {'state': 'fail', 'msg': '注册失败'}
+        if not all([username, password, password2]):
+            context['msg'] = '手机号和密码不能为空'
+            return Response(context, status=400)
+        # 1. 验证手机号格式 (虽然前端验证，后端最好也验证)
+        #    这里简化，假设前端验证有效
+        #    一个简单的例子：
+        #    import re
+        #    if not re.match(r"^1[3-9]\d{9}$", username):
+        #        context['msg'] = '手机号格式不正确'
+        #        return Response(context, status=400)
+        # 2. 验证两次密码是否一致
+        if password != password2:
+            context['msg'] = '两次输入的密码不一致'
+            return Response(context, status=400)
+        # 3. 检查用户名（手机号）是否已存在
+        if User.objects.filter(username=username).exists():
+            context['msg'] = '该手机号已被注册'
+            return Response(context, status=409) # Conflict
+        # 4. 创建用户 (根据你原始逻辑，新用户也设为 is_staff=1, is_active=1)
+        try:
+            # Django的create_user会自动处理密码哈希
+            user = User.objects.create_user(
+                username=username,
+                password=password,
+                is_staff=True, # 与你原逻辑一致
+                is_active=True  # 与你原逻辑一致
+            )
+            # user.save() # create_user 已经保存
+            # 注册后自动登录 (根据你原始逻辑)
             login(request, user)
-        context['username'] = username
-        context['last_login'] = last_login
-        return Response(context)
+            
+            last_login_str = user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else ''
+            context = {
+                'state': 'success',
+                'msg': '注册成功',
+                'username': user.username,
+                'last_login': last_login_str # 注册后首次登录，last_login可能是None或当前时间
+            }
+            return Response(context, status=201) # Created
+        except Exception as e:
+            # print(e) # for debugging
+            context['msg'] = f'创建用户时发生错误: {str(e)[:50]}' # 避免暴露过多错误细节
+            return Response(context, status=500) # Internal Server Error
 
 
 class logoutView(APIView):
@@ -378,6 +440,31 @@ def get_sales_order_items(request):
         return JsonResponse(response_data)
     except OrderInfos.DoesNotExist:
         return JsonResponse({'error': '销售订单不存在'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+from logistics.models import LogisticsOrder, PurchaseOrder, PurchaseOrderItem
+def get_purchase_order_items(request):
+    """获取采购订单的商品项信息"""
+    order_id = request.GET.get('order_id')
+    try:
+        order = PurchaseOrder.objects.get(id=order_id)
+        items = PurchaseOrderItem.objects.filter(order=order)
+        
+        response_data = {
+            'order_number': order.id,
+            'items': [
+                {
+                    'commodity_id': item.commodity.id,
+                    'name': str(item.commodity.name),
+                    'unit_price': float(item.unit_price) if item.unit_price else 0,
+                    'quantity': item.quantity_actual
+                }
+                for item in items
+            ]
+        }
+        return JsonResponse(response_data)
+    except PurchaseOrder.DoesNotExist:
+        return JsonResponse({'error': '采购订单不存在'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -891,3 +978,62 @@ def get_customer_order_details(request):
         traceback.print_exc() # 打印详细的错误堆栈
         return JsonResponse({'error': f'发生服务器内部错误: {e}'}, status=500)
 
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([MySessionAuthentication, BasicAuthentication])
+def confirm_order_delivery(request, order_id):
+    """
+    确认订单签收。
+    同时更新订单状态和关联的物流单状态。
+    """
+    try:
+        with transaction.atomic():  # 使用事务确保数据一致性
+            # 1. 获取订单并验证状态
+            order = OrderInfos.objects.select_for_update().get(id=order_id)
+            
+            # 检查订单当前状态是否允许签收
+            if order.state != '已发货':  # 请根据实际的状态值调整
+                return JsonResponse({
+                    'error': f'当前订单状态（{order.state}）不允许签收确认'
+                }, status=400)
+            # 2. 查找关联的物流单
+            # 使用物流单模型中的外键反向查询
+            logistics_orders = LogisticsOrder.objects.select_for_update().filter(
+                order_infos=order  # 使用物流单模型中定义的外键字段名
+            )
+            
+            if not logistics_orders.exists():
+                return JsonResponse({
+                    'error': '未找到关联的物流单'
+                }, status=400)
+            # 3. 更新订单状态
+            order.state = '已签收'  # 请根据实际的状态值调整
+            order.save(update_fields=['state'])
+            # 4. 更新所有关联的物流单状态
+            current_time = timezone.now()
+            logistics_orders.update(
+                status='delivered',  # 请根据实际的状态值调整
+                actual_delivery=current_time  # 假设物流单模型中有 actual_delivery 字段
+            )
+            return JsonResponse({
+                'message': '订单签收确认成功',
+                'order_id': order_id,
+                'status': 'delivered',
+                'logistics_orders_updated': logistics_orders.count(),
+                'state': 'success'
+            })
+    except OrderInfos.DoesNotExist:
+        return JsonResponse({
+            'error': '订单不存在'
+        }, status=404)
+    
+    except Exception as e:
+        # 记录错误日志
+        print(f"确认订单签收时发生错误 (Order ID: {order_id}): {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return JsonResponse({
+            'error': '服务器处理请求时发生错误'
+        }, status=500)

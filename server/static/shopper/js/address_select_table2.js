@@ -137,7 +137,7 @@
             console.log("Header contains '增加', initializing address select2.");
             initializeAddressSelect2($(selectElementSelector));
         }
-    
+        
 
     });
 })(django.jQuery);

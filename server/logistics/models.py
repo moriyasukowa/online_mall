@@ -101,12 +101,13 @@ class PurchaseOrder(models.Model):
         verbose_name_plural = '采购订单'
 
     def __str__(self):
-        return f"订单号：{self.order_number}"
+        return f"{self.order_number}@{self.total_quantity}@{self.item_count}@{self.get_status_display()}@{self.due_date.strftime('%Y-%m-%d')}"
 
     @property
     def total_quantity(self):
         """计算订单的总采购数量"""
         return sum(item.quantity_actual for item in self.items.all())
+    
 
     @property
     def item_count(self):
@@ -355,8 +356,8 @@ class PurchaseStockInOrder(models.Model):
     
     
     class Meta:
-        verbose_name = '入库单'
-        verbose_name_plural = '入库单'
+        verbose_name = '采购入库单'
+        verbose_name_plural = '采购入库单'
 
 
 class PurchaseStockInOrderItem(models.Model):

@@ -60,3 +60,10 @@ class AddressInfosForm(forms.ModelForm):
             'city': forms.Select(attrs={'class': 'city-select'}),
             'district': forms.Select(attrs={'class': 'district-select'}),
         }
+    # 自定义表单字段username的数据清洗
+    def clean_phone_number(self):
+        if self.cleaned_data['phone_number'] >= 10000000000:
+            return self.cleaned_data['phone_number']
+        else:
+            raise ValidationError('应当为11位手机号')
+    

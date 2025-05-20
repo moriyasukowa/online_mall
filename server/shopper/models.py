@@ -134,8 +134,8 @@ class AddressInfos(models.Model):
         return f"{self.province}{self.city}{self.district}{self.detail}"
     
 class RefundStockInOrder(models.Model):
-    """入库单（关联退款单）"""
-    order_number = models.CharField('入库单号', max_length=50, unique=True)
+    """退款入库单（关联退款单）"""
+    order_number = models.CharField('退款入库单号', max_length=50, unique=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='操作人')
     created_at = models.DateTimeField('入库时间', default=timezone.now)
 
@@ -149,35 +149,37 @@ class RefundStockInOrder(models.Model):
         default='completed'
     )
 
-    refund_orders = models.ManyToManyField(
+    refund_orders = models.ForeignKey(
         RefundInfos,
+        on_delete=models.CASCADE,
+        blank=True,
         related_name='refund_stock_in_orders',
         verbose_name='关联退款单',
     )
     
     @property
     def total_quantity(self):
-        """计算入库单的总入库数量"""
+        """计算退款入库单的总入库数量"""
         return sum(item.quantity for item in self.items.all())
 
     @property
     def item_count(self):
-        """返回入库单中商品的种类数"""
+        """返回退款入库单中商品的种类数"""
         return self.items.values('commodity').distinct().count()
     
     
     class Meta:
-        verbose_name = '入库单'
-        verbose_name_plural = '入库单'
+        verbose_name = '退款入库单'
+        verbose_name_plural = '退款入库单'
 
 
 class RefundStockInOrderItem(models.Model):
-    """入库单商品项"""
+    """退款入库单商品项"""
     order_number = models.ForeignKey(
         RefundStockInOrder,
         on_delete=models.CASCADE,
         related_name='items',
-        verbose_name='关联入库单'
+        verbose_name='关联退款入库单'
     )
     commodity = models.ForeignKey(
         CommodityInfos,
@@ -187,9 +189,9 @@ class RefundStockInOrderItem(models.Model):
     quantity = models.PositiveIntegerField('入库数量')
 
     class Meta:
-        verbose_name = '入库单项'
-        verbose_name_plural = '入库单项'
-        unique_together = ('order_number', 'commodity')  # 同一入库单同一商品只有一项
+        verbose_name = '退款入库单项'
+        verbose_name_plural = '退款入库单项'
+        unique_together = ('order_number', 'commodity')  # 同一退款入库单同一商品只有一项
 
     def __str__(self):
         return f"{self.order_number.order_number} - {self.commodity.name} x{self.quantity}"

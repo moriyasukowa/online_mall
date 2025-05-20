@@ -1,0 +1,105 @@
+/* static/logistics/css/custom_filter_horizontal.css */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.selector {
+    width: 100%; display: flex; justify-content: space-between;
+    margin: 15px 0; gap: 20px;
+}
+
+.selector-available, .selector-chosen {
+    flex: 1; min-width: 480px; display: flex; flex-direction: column;
+    border: 1px solid #ccc; background-color: #fff;
+}
+
+/* Titles, Filter - Unchanged */
+.selector-available h2, .selector-chosen h2 {
+    font-size: 14px; font-weight: bold; padding: 8px 12px; margin: 0;
+    background-color: #417690; color: #fff; border-bottom: 1px solid #ccc;
+}
+.selector-filter { padding: 8px 12px; border-bottom: 1px solid #eee; }
+.selector-filter label { display: none; }
+.selector-filter input { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; }
+
+/* Header Styling */
+.selector-header {
+    display: grid;
+    /* ★ 保持调整后的列宽 */
+    grid-template-columns: 130px 70px 60px 70px 125px;
+    background: #f8f8f8; border-bottom: 1px solid #ddd;
+    padding: 6px 4px; font-size: 12px; font-weight: 600; color: #333;
+    padding-right: 17px; /* Scrollbar space */
+    user-select: none;
+}
+
+/* ★ 表头保持居中 */
+.selector-header > div {
+    padding: 0 5px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; text-align: center;
+}
+
+/* Select Element - Unchanged */
+.selector select {
+    width: 100%; height: 250px; border: none; font-size: 12px;
+    padding: 0; margin: 0; -webkit-appearance: none; -moz-appearance: none;
+    appearance: none; outline: none;
+    /* ★ 尝试设置等宽字体，增加空格对齐成功的几率 */
+    font-family: Consolas, Monaco, 'Courier New', Courier, monospace;
+}
+
+/* Option Styling */
+.selector select#id_purchase_orders_from option,
+.selector select#id_purchase_orders_to option {
+    display: grid !important;
+    /* ★ 匹配表头列宽 */
+    grid-template-columns: 130px 70px 60px 70px 125px;
+    padding: 5px 4px; align-items: center; cursor: pointer;
+    border-bottom: 1px solid #eee; color: #333; background-color: #fff;
+}
+.selector select#id_purchase_orders_from option:last-child,
+.selector select#id_purchase_orders_to option:last-child {
+    border-bottom: none;
+}
+
+/* Option Span Default Styling */
+.selector select option span {
+    display: block;
+    /* ★ 让空格生效，避免被截断 */
+    white-space: pre; /* 或者 pre-wrap, 允许保留空格 */
+    overflow: hidden; /* 仍然需要防止溢出 */
+    text-overflow: ellipsis; /* 溢出时显示省略号 */
+    padding: 0 5px;
+    line-height: 1.4;
+    /* ★ 设置数据列为左对齐，让JS添加的尾随空格尝试“推开”后续内容 */
+    text-align: left !important;
+}
+
+/* 移除之前可能存在的特定列的 text-align 规则 */
+/* .selector select option .col-quantity { text-align: right; } */
+/* .selector select option .col-items { text-align: right; } */
+/* .selector select option .col-status { text-align: center; } */
+/* .selector select option .col-due-date { text-align: center; } */
+
+
+/* Option States - Unchanged */
+.selector select option:checked { background-color: #d5e6f1 !important; color: #000 !important; }
+.selector select option:hover { background-color: #eee !important; }
+.selector select:focus option:checked { background: Highlight !important; color: HighlightText !important; }
+
+/* Chooser, Footer, Media Query - Unchanged */
+.selector .selector-chooser { padding: 0 10px; align-self: center; }
+.selector .selector-chooser a { display: block; margin: 5px 0; padding: 5px; }
+.selector-available .selector-footer, .selector-chosen .selector-footer {
+    padding: 8px 12px; background: #f8f8f8; border-top: 1px solid #ddd; text-align: right;
+}
+.selector-available .selector-footer { text-align: left; }
+.selector-available .selector-footer a, .selector-chosen .selector-footer a {
+    font-size: 12px; color: #417690; text-decoration: none;
+}
+.selector-available .selector-footer a:hover, .selector-chosen .selector-footer a:hover { text-decoration: underline; }
+.selector .help.help-tooltip.help-icon { display: none; }
+@media (max-width: 768px) {
+    .selector { flex-direction: column; }
+    .selector-available, .selector-chosen { min-width: 100%; margin-bottom: 10px; }
+    .selector .selector-chooser { margin: 10px auto; transform: rotate(90deg); }
+}

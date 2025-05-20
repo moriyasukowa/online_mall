@@ -11,6 +11,7 @@ import AddressManagement from '../components/AddressManagement.vue'
 import Checkout from '../components/Checkout.vue'
 import OrderDetail from '../components/OrderDetail.vue'
 import RefundDetail from '../components/RefundDetail.vue'
+import Register from '../components/Register.vue'
 import { pa } from 'element-plus/es/locale/index.mjs'
 
 // 定义路由
@@ -43,6 +44,11 @@ const routes = [
         path: '/shopper/refund/detail/:orderId',
         name: 'RefundDetail',
         component: RefundDetail
+    },
+    {
+        path: '/register',
+        name: 'Register',
+        component: Register
     },
     // 路由匹配/shopper/refund/${this.orderId}
     {path: '/:pathMatch(.*)*', component: Error, meta: {title: '页面丢失'}},

@@ -4,7 +4,6 @@
   <div class="ai-service-container">
     <div class="chat-header">
       <h2>智能AI客服助手</h2>
-      <!-- Add Clear Chat Button here -->
       <button @click="confirmClearChat" class="clear-chat-button" title="清空聊天记录" v-if="messages.length > 0">
         <i class="layui-icon layui-icon-delete"></i>
       </button>
@@ -19,7 +18,7 @@
           <img src="img/ai-avatar.png" alt="AI助手">
         </div>
         <div class="message-content">
-          <p>您好！我是您的智能客服助手，有什么可以帮您解决的问题吗？</p>
+          <p>您好！我是您的智能客服助手，有什么可以帮您解决的问题吗？我可以查询您的订单信息、解答商品问题或处理售后需求。</p>
         </div>
       </div>
 
@@ -31,9 +30,6 @@
         <div class="message-content">
           <div v-if="message.role === 'user'">{{ message.parts[0].text }}</div>
           <div v-else v-html="formatMessage(message.parts[0].text)"></div>
-        </div>
-        <div class="avatar" v-if="message.role === 'user'">
-          <img src="/static/images/user-avatar.png" alt="用户">
         </div>
       </div>
 
@@ -54,10 +50,10 @@
         v-model="userInput"
         placeholder="请输入您的问题..."
         @keydown.enter.prevent="sendMessage"
-        :disabled="isTyping || !isOnline"
+        :disabled="isTyping || !isOnline || isLoadingOrders"
         ref="inputField"
       ></textarea>
-      <button @click="sendMessage" :disabled="!userInput.trim() || isTyping || !isOnline">
+      <button @click="sendMessage" :disabled="!userInput.trim() || isTyping || !isOnline || isLoadingOrders">
         <i class="layui-icon layui-icon-release"></i>
       </button>
     </div>
@@ -66,9 +62,12 @@
 </template>
 
 <script>
-const GEMINI_API_KEY = 'AIzaSyDEPK1Fvp2GpQwLyW49foZnsPLZh9fcpi4'; // Replace with your actual key
-const MODEL_NAME = 'gemini-1.5-flash'; // Or your chosen model
-const CHAT_HISTORY_KEY = 'aiCustomerServiceChatHistory'; // Key for sessionStorage
+const GEMINI_API_KEY = 'AIzaSyDEPK1Fvp2GpQwLyW49foZnsPLZh9fcpi4';
+const MODEL_NAME = 'gemini-2.0-flash';
+const CHAT_HISTORY_KEY = 'aiCustomerServiceChatHistory';
+const USER_ORDERS_KEY = 'userOrdersData';
+const ORDERS_TIMESTAMP_KEY = 'userOrdersTimestamp';
+const ORDERS_CACHE_TIME = 60 * 60 * 1000; // 1小时缓存过期
 
 export default {
   name: 'AiCustomerServiceDirectNonStream',
@@ -78,16 +77,34 @@ export default {
       messages: [],
       isTyping: false,
       isOnline: false,
+      isLoadingOrders: false,
       controller: null,
       geminiApiKey: GEMINI_API_KEY,
       modelName: MODEL_NAME,
       apiEndpoint: '',
       activation: "aisupport",
-      isLoadingHistory: true, // To prevent welcome message flash on load
-      // System instruction for the AI
+      isLoadingHistory: true,
+      userOrders: null,
       systemInstruction: {
         parts: [{
-          text: "你现在是一名专业的电商平台智能客服AI助手。你的任务是帮助用户解决关于商品、订单、物流、售后等常见问题。请用友好、专业且乐于助人的语气回答用户的问题。尽量提供清晰、简洁且有用的信息。如果遇到无法直接回答的问题，可以引导用户联系人工客服或提供相关帮助文档的建议。"
+          text: `你现在是一名专业的电商平台智能客服AI助手，名为"智慧电商助手"。你的任务是帮助用户解决关于商品、订单、物流、售后等问题。
+
+作为客服助手，你应当：
+1. 使用友好、专业且乐于助人的语气回答用户问题
+2. 提供简洁明了的解答，避免冗长回答
+3. 对用户的订单信息保持敏感，当用户询问订单相关问题时，参考提供的订单数据
+4. 当用户询问订单状态、物流信息或商品详情时，主动查询并提供相关订单数据
+5. 对于催发货和催退款审核等需求，给予适当安抚，如："我会尽快反馈给相关部门，帮您处理"
+6. 如果遇到系统中没有的信息，诚实告知并提供替代解决方案
+7. 避免使用过于复杂的术语，确保用户理解你的回答
+
+回答时，请注意：
+- 保持回答简洁，通常不超过3-4段文字
+- 对订单信息有针对性地回应，不要罗列所有订单信息
+- 不要编造不存在的信息
+- 适当使用礼貌用语，但不要过于冗长
+
+根据用户提供的订单数据，你可以获取到订单ID、商品信息、价格、状态等关键信息，请善用这些信息来提供个性化的回答。`
         }]
       }
     }
@@ -100,16 +117,61 @@ export default {
         this.apiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.geminiApiKey}`;
         this.isOnline = true;
     }
+    
+    // 先检查用户是否登录
+    if (this.$store.state.username) {
+      this.loadUserOrders();
+    }
+    
     this.loadMessagesFromStorage();
   },
   mounted() {
     this.scrollToBottom();
-    this.focusInput(); // Focus input on mount
+    this.focusInput();
   },
   updated() {
     this.scrollToBottom();
   },
   methods: {
+    async loadUserOrders() {
+      // 先尝试从缓存加载
+      const cachedOrders = localStorage.getItem(USER_ORDERS_KEY);
+      const cachedTimestamp = localStorage.getItem(ORDERS_TIMESTAMP_KEY);
+      
+      if (cachedOrders && cachedTimestamp) {
+        const now = new Date().getTime();
+        if (now - parseInt(cachedTimestamp) < ORDERS_CACHE_TIME) {
+          // 缓存未过期，使用缓存数据
+          this.userOrders = JSON.parse(cachedOrders);
+          console.log("从缓存加载用户订单数据");
+          return;
+        }
+      }
+      
+      // 缓存不存在或已过期，从API加载
+      this.isLoadingOrders = true;
+      try {
+        console.log("正在从API获取用户订单数据...");
+        const response = await this.axios.get('/api/v1/shopper/home/');
+        
+        if (response.data.state === 'success' && response.data.data.orders) {
+          this.userOrders = response.data.data.orders;
+          
+          // 缓存订单数据
+          localStorage.setItem(USER_ORDERS_KEY, JSON.stringify(this.userOrders));
+          localStorage.setItem(ORDERS_TIMESTAMP_KEY, new Date().getTime().toString());
+          
+          console.log("成功获取用户订单数据");
+        } else {
+          console.error("获取订单数据失败:", response.data.msg);
+        }
+      } catch (error) {
+        console.error("获取订单数据出错:", error);
+      } finally {
+        this.isLoadingOrders = false;
+      }
+    },
+    
     loadMessagesFromStorage() {
       this.isLoadingHistory = true;
       try {
@@ -119,7 +181,7 @@ export default {
         }
       } catch (error) {
         console.error("Error loading messages from session storage:", error);
-        this.messages = []; // Reset if parsing fails
+        this.messages = [];
       } finally {
         this.isLoadingHistory = false;
       }
@@ -134,7 +196,6 @@ export default {
     },
 
     confirmClearChat() {
-      // You might want to use a more integrated confirmation dialog (e.g., from Layui or another UI library)
       if (window.confirm("您确定要清空所有聊天记录吗？此操作不可恢复。")) {
         this.clearChat();
       }
@@ -142,35 +203,65 @@ export default {
 
     clearChat() {
       this.messages = [];
-      this.saveMessagesToStorage(); // This will save an empty array
-      this.userInput = ''; // Clear input field as well
-      if (this.controller) { // Cancel any ongoing request
+      this.saveMessagesToStorage();
+      this.userInput = '';
+      if (this.controller) {
         this.controller.abort();
         this.isTyping = false;
       }
       this.focusInput();
-      // Optionally, re-add the initial welcome message if you want it after clearing
-      // Or just let the `v-if="messages.length === 0"` handle showing the standard welcome
+    },
+    
+    // 准备发送给Gemini的用户订单数据
+    prepareOrderData() {
+      if (!this.userOrders || this.userOrders.length === 0) {
+        return null;
+      }
+      
+      // 创建一个简化版的订单数据以减少令牌使用
+      const simplifiedOrders = this.userOrders.map(order => {
+        // 获取每个订单的关键项目信息
+        const items = order.items.map(item => ({
+          name: item.commodityInfos_id.name,
+          quantity: item.quantity,
+          price: item.unit_price,
+          type: item.commodityInfos_id.types
+        }));
+        
+        return {
+          id: order.id,
+          items: items,
+          total_price: order.price,
+          date: order.created,
+          status: order.state,
+          payment_id: order.pay_id
+        };
+      });
+      
+      return {
+        total_orders: simplifiedOrders.length,
+        orders: simplifiedOrders
+      };
     },
 
     async sendMessage() {
       if (!this.userInput.trim() || this.isTyping || !this.isOnline) {
         return;
       }
+      
       const userMessageText = this.userInput.trim();
       this.messages.push({
         role: 'user',
         parts: [{ text: userMessageText }]
       });
-      this.saveMessagesToStorage(); // Save after adding user message
+      this.saveMessagesToStorage();
       this.userInput = '';
       this.isTyping = true;
       this.scrollToBottom();
 
-      // Prepare message history for API, excluding any previous system messages if they were part of `this.messages`
-      // For generateContent, usually you send the whole history.
+      // 准备消息历史
       const contentsForApi = this.messages.map(msg => ({
-         role: msg.role, // Gemini uses 'user' and 'model'
+         role: msg.role,
          parts: msg.parts
       }));
 
@@ -180,16 +271,22 @@ export default {
       let aiResponseText = '抱歉，未能获取回复。';
 
       try {
+        // 准备请求体，添加系统指令和用户信息
         const requestBody = {
           contents: contentsForApi,
-          system_instruction: this.systemInstruction, // Add system instruction here
-          // Optional generationConfig
-          // generationConfig: {
-          //   temperature: 0.7,
-          //   maxOutputTokens: 1000,
-          // }
+          system_instruction: this.systemInstruction,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 2048,
+          }
         };
-        // console.log("Sending to Gemini:", JSON.stringify(requestBody, null, 2)); // For debugging
+        
+        // 添加用户订单数据，如果有
+        const orderData = this.prepareOrderData();
+        if (orderData) {
+          // 添加订单信息作为系统指令的一部分
+          requestBody.system_instruction.parts[0].text += `\n\n以下是用户的订单数据，请在回答用户订单相关问题时参考这些信息：\n${JSON.stringify(orderData, null, 2)}`;
+        }
 
         const response = await fetch(this.apiEndpoint, {
           method: 'POST',
@@ -208,8 +305,6 @@ export default {
             throw new Error(`API 请求失败 (${response.status}): ${errorMsg}`);
         }
 
-        // console.log("Gemini API Success Response:", responseData);
-
         aiResponseText = responseData?.candidates?.[0]?.content?.parts?.[0]?.text || '未能解析回复内容。';
 
         if (responseData?.candidates?.[0]?.finishReason === 'SAFETY') {
@@ -218,9 +313,8 @@ export default {
         } else if (!aiResponseText && responseData?.candidates?.[0]?.finishReason && responseData.candidates[0].finishReason !== 'STOP') {
              aiResponseText = `[模型结束了回复，但未提供文本内容 (原因: ${responseData.candidates[0].finishReason})]`;
         } else if (!aiResponseText && !responseData?.candidates?.[0]?.content?.parts?.[0]?.text) {
-             aiResponseText = '[AI助手暂时没有回复，请稍后再试或尝试其他问题。]'; // More user-friendly for empty part
+             aiResponseText = '[AI助手暂时没有回复，请稍后再试或尝试其他问题。]';
         }
-
 
       } catch (error) {
         if (error.name === 'AbortError') {
@@ -232,15 +326,15 @@ export default {
         }
       } finally {
         this.messages.push({
-            role: 'model', // Gemini uses 'model' for AI responses
+            role: 'model',
             parts: [{ text: aiResponseText.trim() }]
         });
-        this.saveMessagesToStorage(); // Save after adding AI message
+        this.saveMessagesToStorage();
 
         this.isTyping = false;
         this.controller = null;
         this.scrollToBottom();
-        this.focusInput(); // Re-focus input after response
+        this.focusInput();
       }
     },
 
@@ -250,19 +344,18 @@ export default {
        html = html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
        html = html.replace(/```(\w*)\n([\s\S]*?)\n```/g, (match, lang, code) => {
            const languageClass = lang ? `language-${lang}` : '';
-           // Double escape for pre > code scenario
            const escapedCode = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
            return `<pre><code class="${languageClass}">${escapedCode}</code></pre>`;
        });
-       html = html.replace(/```\n([\s\S]*?)\n```/g, (match, code) => { // For code blocks without language
+       html = html.replace(/```\n([\s\S]*?)\n```/g, (match, code) => {
            const escapedCode = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
            return `<pre><code>${escapedCode}</code></pre>`;
        });
-      html = html.replace(/`([^`]+)`/g, '<code>$1</code>'); // Inline code
-      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold
-      html = html.replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, '<em>$1</em>'); // Italics (more robust)
-      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'); // Links
-      html = html.replace(/\n/g, '<br>'); // Newlines
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+      html = html.replace(/\n/g, '<br>');
       return html;
     },
 
@@ -276,7 +369,7 @@ export default {
     },
 
     focusInput() {
-      this.$nextTick(() => { // Ensure DOM is updated
+      this.$nextTick(() => {
         if (this.$refs.inputField) {
           this.$refs.inputField.focus();
         }
@@ -293,15 +386,14 @@ export default {
 </script>
 
 <style scoped>
-/* ... (your existing styles) ... */
 .ai-service-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 100px); /* Adjusted for base-page and footer-page (example) */
-  min-height: 500px; /* Minimum sensible height */
+  height: calc(100vh - 100px);
+  min-height: 500px;
   width: 100%;
   max-width: 900px;
-  margin: 20px auto; /* Reduced top/bottom margin */
+  margin: 20px auto;
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   background-color: #f9f9f9;
@@ -310,23 +402,23 @@ export default {
 
 .chat-header {
   display: flex;
-  justify-content: space-between; /* Adjusted for new button */
+  justify-content: space-between;
   align-items: center;
-  padding: 12px 15px; /* Slightly reduced padding */
+  padding: 12px 15px;
   background-color: #1E9FFF;
   color: white;
   border-bottom: 1px solid #e0e0e0;
   flex-shrink: 0;
-  position: relative; /* For absolute positioning of button if needed, but flex is better */
+  position: relative;
 }
 
 .chat-header h2 {
   margin: 0;
   font-size: 17px;
   font-weight: 600;
-  flex-grow: 1; /* Allow title to take space */
-  text-align: center; /* Center title if clear button is on one side and status on other */
-  margin-left: 50px; /* Make space for clear button if it's on the left */
+  flex-grow: 1;
+  text-align: center;
+  margin-left: 50px;
 }
 
 .chat-header .clear-chat-button {
@@ -334,10 +426,9 @@ export default {
   border: none;
   color: white;
   cursor: pointer;
-  font-size: 18px; /* Adjust icon size */
+  font-size: 18px;
   padding: 5px;
-  margin-right: 10px; /* Space before status or edge */
-  /* position: absolute; left: 15px; (alternative positioning) */
+  margin-right: 10px;
 }
 .chat-header .clear-chat-button .layui-icon {
   vertical-align: middle;
@@ -352,7 +443,6 @@ export default {
   font-size: 12px;
   padding: 4px 10px;
   border-radius: 12px;
-  /* margin-left: auto; Pushes status to the right if not using space-between */
 }
 
 .status.online {

@@ -13,10 +13,10 @@
             const status        = parts[3].trim();
             const dueDate       = parts[4].trim();
 
-            const padding1 = '   '; // 订单号后的填充 (示例)
-            const padding2 = '     '; // 总数后的填充 (示例)
-            const padding3 = '    '; // 物料后的填充 (示例)
-            const padding4 = '   '; // 状态后的填充 (示例)
+            const padding1 = '       '; // 订单号后的填充 (示例)
+            const padding2 = '       '; // 总数后的填充 (示例)
+            const padding3 = '       '; // 物料后的填充 (示例)
+            const padding4 = '     '; // 状态后的填充 (示例)
             // 日期通常靠右或居中，可能不需要右侧填充，或者填充方式不同
 
             // 生成带 span 的 HTML，附加了空格

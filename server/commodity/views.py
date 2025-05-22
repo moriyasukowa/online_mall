@@ -9,6 +9,7 @@ from .serializers import *
 from django.core.exceptions import PermissionDenied
 from django.contrib.admin.utils import get_model_from_relation
 from django.contrib.admin.views.autocomplete import AutocompleteJsonView
+from django.db.models import Q
 
 class commodityView(APIView):
     '''
@@ -21,20 +22,34 @@ class commodityView(APIView):
     def get(self, request):
         types = request.GET.get('types', '')
         search = request.GET.get('search', '')
-        sort = request.GET.get('sort', 'sold')
+        sort = request.GET.get('sort', 'sold')  # 默认按销量排序
+        
+        # 添加排序方向参数，默认为降序('desc')
+        order = request.GET.get('order', 'desc')
+        
         context = {'state': 'success', 'msg': '获取成功', 'data': {}}
         context['data']['types'] = []
         firsts = Types.objects.values_list('firsts', flat=True).distinct()
         for f in firsts:
             t = Types.objects.filter(firsts=f).values_list('seconds', flat=True).all()
             context['data']['types'].append(dict(name=f, value=t))
+        
         cf = CommodityInfos.objects.all()
+        
         if types:
             cf = cf.filter(types=types)
+            
+        # 修改排序逻辑，支持正序和逆序
         if sort:
-            cf = cf.order_by('-' + sort)
+            # 根据order参数决定是否添加'-'前缀
+            if order.lower() == 'desc':  # 降序排序
+                cf = cf.order_by('-' + sort)
+            else:  # 升序排序
+                cf = cf.order_by(sort)
+                
         if search:
             cf = cf.filter(name__contains=search)
+            
         count = cf.count()
         # 分页查询，需要在settings.py设置REST_FRAMEWORK属性
         pg = PageNumberPagination()
@@ -51,8 +66,17 @@ class commodityView(APIView):
             previous = pg.page.previous_page_number()
         except:
             previous = 0
-        d = dict(data=c.data, previous=previous,
-                 next=next, count=count, pageCount=pageCount)
+            
+        # 将当前的排序字段和方向也添加到返回数据中，便于前端处理
+        d = dict(data=c.data, 
+                 previous=previous,
+                 next=next, 
+                 count=count, 
+                 pageCount=pageCount,
+                 currentSort=sort,  # 当前排序字段
+                 currentOrder=order  # 当前排序方向
+                )
+                
         context['data']['commodityInfos'] = d
         return Response(context)
 
@@ -97,3 +121,58 @@ class collectView(APIView):
             request.session['likes'] = likes + [int(id)]
             context = {'state': 'success', 'msg': '收藏成功'}
         return Response(context)
+class CommoditySuggestionView(APIView):
+    """
+    商品搜索建议接口
+    用于实现搜索框的实时提示功能
+    """
+    authentication_classes = []
+    permission_classes = []
+    def get(self, request):
+        # 获取查询参数
+        query = request.GET.get('q', '').strip()
+        limit = request.GET.get('limit', 5)
+        
+        # 尝试将limit转换为整数，如果转换失败，使用默认值5
+        try:
+            limit = int(limit)
+            # 限制最大返回数量，防止请求过大
+            if limit > 20:
+                limit = 20
+        except (ValueError, TypeError):
+            limit = 5
+            
+        # 如果查询字符串为空，直接返回空结果
+        if not query:
+            return Response({
+                'state': 'success',
+                'msg': '搜索关键词为空',
+                'data': []
+            })
+            
+        # 构建查询条件: 查询商品名称包含搜索关键词的商品
+        # 使用Q对象进行复杂查询: 名称包含搜索词 或 类型包含搜索词
+        queryset = CommodityInfos.objects.filter(
+            Q(name__icontains=query) | 
+            Q(types__icontains=query)
+        )
+        
+        # 限制返回数量并优先返回有库存的商品
+        # 先按照是否有库存排序(库存量大于0的排前面)，然后按照销量排序(销量高的排前面)
+        queryset = queryset.filter(inventory__gt=0).order_by('-sold')[:limit]
+        
+        # 如果按照上面条件没有结果，就不考虑库存限制，直接按销量排序
+        if not queryset.exists():
+            queryset = CommodityInfos.objects.filter(
+                Q(name__icontains=query) | 
+                Q(types__icontains=query)
+            ).order_by('-sold')[:limit]
+        
+        # 使用序列化器处理查询结果
+        serializer = CommoditySuggestionSerializer(queryset, many=True)
+        
+        return Response({
+            'state': 'success',
+            'msg': '获取搜索建议成功',
+            'data': serializer.data
+        })

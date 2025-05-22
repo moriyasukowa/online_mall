@@ -1037,3 +1037,59 @@ def confirm_order_delivery(request, order_id):
         return JsonResponse({
             'error': '服务器处理请求时发生错误'
         }, status=500)
+    
+# --- 新增的 AdminOrderDetailView (供管理员使用) ---
+class AdminOrderDetailViewRF(APIView):
+    '''
+    (管理员) 获取单个订单详情 - 无需用户验证
+    URL: (需要单独配置, 例如 /api/v1/admin/orders/<int:pk>/)
+    '<int:pk>' 会作为参数 pk 传递给 get 方法
+    '''
+    # 移除认证和权限类，允许任何访问
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, pk): # 'pk' 来自 URL 中定义的 <int:pk>
+        """
+        处理获取单个订单详情的 GET 请求 (管理员)
+        """
+        context = {'state': 'fail', 'msg': '', 'data': {}}
+        try:
+            # 1. 获取订单对象，仅通过 ID 查询，不检查用户
+            refund_order = get_object_or_404(RefundInfos, id=pk) # <--- 修改这里，移除了 user=request.user
+
+            order = refund_order.order # 获取关联的订单对象
+            
+            # 2. 获取与订单关联的商品项 (PurchaseInfos)
+            purchase_items = PurchaseInfos.objects.filter(order=order)
+            
+            # 3. 序列化数据
+            order_serializer = OrderInfosSerializer(order)
+            items_serializer = PurchaseInfosSerializer(purchase_items, many=True)
+
+            address_data = None
+            if order.address: # 假设 OrderInfos 模型有 address 字段关联 AddressInfos
+                address_serializer = AddressSerializer(order.address)
+                address_data = address_serializer.data
+                
+            # 4. 组装返回的数据结构
+            context['data'] = {
+                'order': order_serializer.data,
+                'items': items_serializer.data,
+                'address': address_data # 直接使用 address_data (可能是序列化后的 dict 或 None)
+            }
+            context['state'] = 'success'
+            context['msg'] = '获取订单详情成功'
+            # print('管理员查询订单详情', context['data']) # 可以取消注释用于调试
+            return Response(context, status=status.HTTP_200_OK)
+        
+        except Http404: # 由 get_object_or_404 抛出
+            context['msg'] = f'ID 为 {pk} 的订单不存在' # 修改错误消息
+            return Response(context, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            # 捕获其他潜在错误
+            print(f"Error fetching order detail (admin) for order {pk}: {e}") # 打印错误日志方便调试
+            context['msg'] = f'获取订单详情时发生错误: {e}'
+            return Response(context, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        

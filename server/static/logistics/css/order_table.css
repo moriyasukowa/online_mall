@@ -1,0 +1,75 @@
+/* Styling for the Order Select2 dropdown results */
+
+/* Container for each result row */
+.select2-result-order-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 8px;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9em; /* Slightly smaller font */
+}
+.select2-results__option--highlighted .select2-result-order-row {
+    background-color: #5897fb;
+    color: white;
+    border-bottom-color: #4c8efb;
+}
+.select2-results__option:last-child .select2-result-order-row {
+   border-bottom: none;
+}
+
+/* Individual "columns" styling */
+.select2-result-order__sn {
+    flex: 2 1 120px; /* More space, min width 120px */
+    padding-right: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.select2-result-order__date {
+    flex: 1 1 90px; /* Min width 90px */
+    padding-right: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: #555; /* Slightly dimmer color */
+}
+
+.select2-result-order__status {
+    flex: 1 1 70px; /* Min width 70px */
+    padding-right: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-style: italic; /* Italicize status */
+     color: #555;
+}
+
+.select2-result-order__price {
+    flex: 0 1 90px; /* Min width 90px, allow shrinking */
+    text-align: right;
+    font-weight: bold; /* Bold price */
+    white-space: nowrap;
+}
+
+/* Header row styling */
+.select2-results__header {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    font-weight: bold;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+    color: #333;
+    font-size: 0.9em;
+}
+/* Apply the same flex properties to header columns */
+.select2-results__header .select2-result-order__sn { flex: 2 1 120px; }
+.select2-results__header .select2-result-order__date { flex: 1 1 90px; }
+.select2-results__header .select2-result-order__status { flex: 1 1 70px; }
+.select2-results__header .select2-result-order__price { flex: 0 1 90px; text-align: right; } /* Ensure header price aligns right */
+
+/* Make the dropdown wider */
+.select2-dropdown.order-table-dropdown {
+    min-width: 550px !important; /* Adjust width as needed */
+}

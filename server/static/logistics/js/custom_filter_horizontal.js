@@ -15,7 +15,7 @@
 
             // ★ 使用多个空格或 | 作为分隔符，不再依赖 padding
             //   你可以调整空格数量或改用 |
-            const separator = '   '; // 三个空格
+            const separator = '       '; // 三个空格
             // const formatted = `${id}${separator}${user}${separator}${date}${separator}${state}${separator}${price}`;
             const formatted = `${id} | ${user} | ${date} | ${state} | ${price}`;
 

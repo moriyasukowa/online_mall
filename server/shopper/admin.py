@@ -298,26 +298,21 @@ class RefundStockInOrderAdmin(admin.ModelAdmin):
     class Media:
         css = {
             'all': (
-                    'logistics/css/custom_inline.css',
-                    'logistics/css/custom_filter_horizontal.css',
-                    'logistics/css/inbound_custom.css',)
+                    'logistics/css/custom_inline.css',)
         }
         js = ('admin/js/vendor/jquery/jquery.js',
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
-            'logistics/js/pinbound_custom.js',
-            'logistics/js/inbound_complete.js',
+            'shopper/js/refund_inbound_auto.js',
             )
         
     list_display = ['order_number', 'status', 'created_by', 'created_at', 
                     'total_quantity', 'item_count']
     list_filter = ['status', 'created_at', 'created_by']
     search_fields = ['order_number', 'notes']
-    autocomplete_fields = ['refund_orders'] 
+    autocomplete_fields = ['refund_orders']  # 保持单个字段，因为是ForeignKey
     inlines = [RefundStockInOrderItemInline]
-    fields = ['order_number', 'status', 'created_by', 'created_at','refund_orders','notes']
-
-
+    fields = ['order_number', 'status', 'created_by', 'created_at', 'refund_orders', 'notes']
     def get_changeform_initial_data(self, request):
         initial = super().get_changeform_initial_data(request)
         initial.update({
@@ -325,108 +320,103 @@ class RefundStockInOrderAdmin(admin.ModelAdmin):
             'order_number': self.generate_initial_order_number(request)
         })
         return initial
-
     def generate_initial_order_number(self, request):
         today = timezone.now().date()
         date_str = today.strftime('%Y%m%d')
-        last_order = RefundStockInOrder.objects.filter(order_number__startswith=f'PSO-{date_str}-').order_by('-order_number').first()
+        last_order = RefundStockInOrder.objects.filter(order_number__startswith=f'RSO-{date_str}-').order_by('-order_number').first()
         if last_order:
             last_num = int(last_order.order_number.split('-')[-1])
             new_num = last_num + 1
         else:
             new_num = 1
-        return f'PSO-{date_str}-{new_num:03d}'
+        return f'RSO-{date_str}-{new_num:03d}'
     
     def item_count(self, obj):
         return obj.item_count
     item_count.short_description = '商品种类数'
-
     def total_quantity(self, obj):
         return obj.total_quantity
     total_quantity.short_description = '总出库数量'
-
     def save_model(self, request, obj, form, change):
         with transaction.atomic():
-            # 先保存出库单（但不提交事务）
+            # 先保存入库单（但不提交事务）
             super().save_model(request, obj, form, change)
             
-            # 获取表单中提交的销售订单ID列表
-            if 'refund_orders' in form.cleaned_data:
-                purchase_order_ids = [order.order_number for order in form.cleaned_data['refund_orders']]
+            # 获取表单中提交的退款单
+            if 'refund_orders' in form.cleaned_data and form.cleaned_data['refund_orders']:
+                refund_order = form.cleaned_data['refund_orders']
                 
-                # 更新这些订单的状态
-                updated_count = OrderInfos.objects.filter(
-                    order_number__in=purchase_order_ids
-                ).update(state='completed')
-                
-                # 添加操作成功的消息
-                messages.success(
-                    request, 
-                    f'成功创建入库单，并更新其关联的{updated_count}采购单状态为"已完成"'
-                )
-                
-                # 确保多对多关系被保存（Django通常会自动处理）
-                form.save_m2m()
+                # 获取关联的订单
+                related_order = refund_order.order
+                print(related_order)
+                if related_order:
+                    # 更新订单状态
+                    related_order.state = '退款成功'
+                    related_order.save()
+                    
+                    # 添加操作成功的消息
+                    messages.success(
+                        request, 
+                        f'成功创建入库单，并更新其关联的退款单 {refund_order.refund_id} 对应的订单状态为"已完成"'
+                    )
+                else:
+                    messages.warning(
+                        request, 
+                        f'退款单 {refund_order.refund_id} 没有关联的订单信息'
+                    )
             else:
                 messages.warning(
                     request, 
-                    '出库单创建成功，但没有关联任何销售订单'
+                    '入库单创建成功，但没有关联任何退款单'
                 )
-
     # --- save_related for inventory increase and PO status update ---
     def save_related(self, request, form, formsets, change):
-
         super().save_related(request, form, formsets, change)
-
         obj = form.instance
-
-        items_to_process = obj.items.all() # IMPORTANT: Check related_name
-
-
-
+        items_to_process = obj.items.all() # 使用related_name='items'获取所有商品项
         if not items_to_process.exists():
-            messages.warning(request, f"入库单 {obj.order_number} 没有包含任何商品明细，未执行库存增加或采购单状态更新。")
-            return # Exit if no items
-
+            messages.warning(request, f"入库单 {obj.order_number} 没有包含任何商品明细，未执行库存增加。")
+            return # 如果没有商品项则退出
         try:
             with transaction.atomic():
-                # --- Inventory Increase Logic ---
+                # --- 库存增加逻辑 ---
                 commodities_to_update = []
                 processed_commodity_ids = set()
-
                 for item in items_to_process:
                     commodity_id = item.commodity_id
-                    quantity_to_increase = item.quantity # Use the correct name
-
+                    quantity_to_increase = item.quantity # 使用正确的字段名
                     if not commodity_id or quantity_to_increase <= 0:
                         continue
-
-                    # Optional: handle multiple lines for same commodity if needed
+                    # 可选：如果需要，处理同一商品的多行
                     if commodity_id in processed_commodity_ids:
-                        # If you sum quantities *before* locking, lock only once.
-                        # For simplicity here, we process each line but lock once per commodity.
+                        # 如果在锁定前汇总数量，则每个商品只锁定一次
+                        # 为简单起见，我们处理每一行，但每个商品只锁定一次
                         pass
-
                     try:
-                        # Lock the commodity row for update
+                        # 锁定商品行以进行更新
                         commodity_record = CommodityInfos.objects.select_for_update().get(id=commodity_id)
-
-                        # Increase inventory
+                        # 增加库存
                         commodity_record.inventory += quantity_to_increase
                         commodities_to_update.append(commodity_record)
                         processed_commodity_ids.add(commodity_id)
-
                     except CommodityInfos.DoesNotExist:
-                        # This indicates a data integrity issue
+                        # 这表示数据完整性问题
                         raise ValidationError(
                             f"无法找到 ID 为 {commodity_id} 的商品信息，无法入库 "
                             f"(来自入库单: {obj.order_number})"
                         )
-
-                # --- Bulk update inventory ---
+                # --- 批量更新库存 ---
                 if commodities_to_update:
                     CommodityInfos.objects.bulk_update(commodities_to_update, ['inventory'])
                     messages.success(request, f"成功更新了 {len(processed_commodity_ids)} 种商品的库存。")
+                    
+                # 更新退款单状态（如果需要）
+                if obj.refund_orders:
+                    refund_order = obj.refund_orders
+                    if refund_order.state != '退款完成':
+                        refund_order.state = '退款完成'
+                        refund_order.save()
+                        messages.success(request, f"已将退款单 {refund_order.refund_id} 状态更新为'退款完成'。")
                     
         except ValidationError as e:
             messages.error(request, f"处理入库单关联操作失败（库存或订单状态）：{e}")
@@ -436,5 +426,4 @@ class RefundStockInOrderAdmin(admin.ModelAdmin):
             messages.error(request, f"发生意外错误，处理关联操作失败：{e}")
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Error in save_related for purchase stock in order {obj.order_number}: {e}", exc_info=True)
-    
+            logger.error(f"Error in save_related for refund stock in order {obj.order_number}: {e}", exc_info=True)

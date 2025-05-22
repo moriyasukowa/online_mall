@@ -136,33 +136,37 @@
         function rebuildInlineItems(items) {
             clearAllInlineItems();
 
-            if (items.length === 0) {
+            // 过滤掉 quantity 为 0 的项目
+            const filteredItems = items.filter(item => item.quantity > 0);
+            
+            // 如果过滤后没有有效项目，直接返回
+            if (filteredItems.length === 0) {
                 return;
             }
-
+            
             let rows = $('.dynamic-items').not('.empty-form');
             let $firstRow = rows.length > 0 ? rows.first() : null;
-
+            
             if (!$firstRow) {
                 $('.add-row a').trigger('click');
                 rows = $('.dynamic-items').not('.empty-form');
                 $firstRow = rows.first();
             }
-
-            const firstItem = items[0];
+            
+            const firstItem = filteredItems[0];
             setRowData($firstRow, firstItem, 0);
-
-            if (items.length > 1) {
-                for (let i = 1; i < items.length; i++) {
+            
+            if (filteredItems.length > 1) {
+                for (let i = 1; i < filteredItems.length; i++) {
                     $('.add-row a').trigger('click');
                 }
-
+                
                 setTimeout(() => {
                     const allRows = $('.dynamic-items').not('.empty-form');
-                    for (let i = 1; i < items.length; i++) {
+                    for (let i = 1; i < filteredItems.length; i++) {
                         if (i < allRows.length) {
                             const $row = allRows.eq(i);
-                            setRowData($row, items[i], i);
+                            setRowData($row, filteredItems[i], i);
                         }
                     }
                     updateFormCount();

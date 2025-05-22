@@ -564,9 +564,7 @@ class LogisticsOrderItemInline(admin.TabularInline):
     verbose_name = "物流单商品项"
     verbose_name_plural = "物流单商品项"
 @admin.register(LogisticsOrder)
-
 class LogisticsOrderAdmin(admin.ModelAdmin):
-    
     class Media:
         css = {
             'all': (
@@ -574,6 +572,7 @@ class LogisticsOrderAdmin(admin.ModelAdmin):
                     'logistics/css/address(dest)_select2-table.css',
                     'logistics/css/address(origin)_select2-table.css',
                     'logistics/css/order_of_outbound.css',
+                    'logistics/css/order_table.css',
                     )
         }
         js = ('admin/js/vendor/jquery/jquery.js',
@@ -581,11 +580,11 @@ class LogisticsOrderAdmin(admin.ModelAdmin):
             'admin/js/jquery.init.js',
             'logistics/js/address(dest)_select_table2.js',
             'logistics/js/address(origin)_select_table2.js',
-            'logistics/js/order_of_outbound.js',
             'logistics/js/autocomplete_logistics_order1.js',
+            'logistics/js/order_table.js',
             )
 
-    list_display = ['tracking_number', 'carrier', 'status', 'source_info', 
+    list_display = ['tracking_number', 'carrier', 'status', 'order_infos', 
                     'estimated_delivery', 'actual_delivery', 'total_quantity',  
                     'item_count', 'created_at']
     list_filter = ['status', 'carrier', 'created_at']
@@ -593,9 +592,9 @@ class LogisticsOrderAdmin(admin.ModelAdmin):
     inlines = [LogisticsOrderItemInline]
     list_editable = ['status']
     
-    fields = ['tracking_number', 'carrier', 'status', 'estimated_delivery', 'created_by', 'outbound_order', 'order_infos', 'origin_address', 'destination_address', 'notes']
+    fields = ['tracking_number', 'carrier', 'status', 'estimated_delivery', 'created_by', 'order_infos', 'origin_address', 'destination_address', 'notes']
 
-    autocomplete_fields = ['outbound_order']
+    autocomplete_fields = ['order_infos']
 
     def item_count(self, obj):
         return obj.item_count
@@ -623,12 +622,6 @@ class LogisticsOrderAdmin(admin.ModelAdmin):
             new_num = 1
         return f'LO-{date_str}-{new_num:03d}'
     
-    def source_info(self, obj):
-        if obj.outbound_order:
-            return format_html('<span style="color: green;">出库单: {}</span>', obj.outbound_order.order_number)
-        return "未关联"
-    source_info.short_description = "关联来源"
-    
     def save_model(self, request, obj: LogisticsOrder, form, change):
 
         try:
@@ -638,6 +631,10 @@ class LogisticsOrderAdmin(admin.ModelAdmin):
                 # obj.refresh_from_db()
                 # 2. 更新关联的 OrderInfos 状态
                 order_info = obj.order_infos # 获取关联的客户订单对象
+
+                print(order_info) # 日志
+
+
                 if order_info:
                     if order_info.state != "已发货": # 仅在状态不是“已发货”时更新
                         old_status = order_info.state
@@ -709,7 +706,7 @@ class PurchaseStockInOrderAdmin(admin.ModelAdmin):
         js = ('admin/js/vendor/jquery/jquery.js',
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
-            'logistics/js/pinbound_custom.js',
+            'logistics/js/pinbound_custom2.js',
             'logistics/js/inbound_complete.js',
             )
         
@@ -764,9 +761,15 @@ class PurchaseStockInOrderAdmin(admin.ModelAdmin):
                 purchase_order_ids = [order.order_number for order in form.cleaned_data['purchase_orders']]
                 
                 # 更新这些订单的状态
-                updated_count = OrderInfos.objects.filter(
+                updated_count = PurchaseOrder.objects.filter(
                     order_number__in=purchase_order_ids
-                ).update(state='completed')
+                ).update(status='completed')
+
+                procurement_order_ids = [purchase_order_ids.procurement_plan.order_number for purchase_order_ids in form.cleaned_data['purchase_orders']]
+
+                updated_count = ProcurementOrder.objects.filter(
+                    order_number__in=procurement_order_ids
+                ).update(status='completed')                    
                 
                 # 添加操作成功的消息
                 messages.success(

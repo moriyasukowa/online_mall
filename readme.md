@@ -28,6 +28,6 @@ python manage.py migrate
 ## 3. 上传到 GitHub
 ```bash
 git add .
-git commit -m "答辩前更新AI客服和登录注册页面"
+git commit -m "5.22答辩前Debug"
 git push origin main
 ```

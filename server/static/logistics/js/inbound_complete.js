@@ -135,8 +135,9 @@
 
         function rebuildInlineItems(items) {
             clearAllInlineItems();
+            const fitems = items.filter(item => item.quantity > 0);
 
-            if (items.length === 0) {
+            if (fitems.length === 0) {
                 return;
             }
 
@@ -149,20 +150,20 @@
                 $firstRow = rows.first();
             }
 
-            const firstItem = items[0];
+            const firstItem = fitems[0];
             setRowData($firstRow, firstItem, 0);
 
-            if (items.length > 1) {
-                for (let i = 1; i < items.length; i++) {
+            if (fitems.length > 1) {
+                for (let i = 1; i < fitems.length; i++) {
                     $('.add-row a').trigger('click');
                 }
 
                 setTimeout(() => {
                     const allRows = $('.dynamic-items').not('.empty-form');
-                    for (let i = 1; i < items.length; i++) {
+                    for (let i = 1; i < fitems.length; i++) {
                         if (i < allRows.length) {
                             const $row = allRows.eq(i);
-                            setRowData($row, items[i], i);
+                            setRowData($row, fitems[i], i);
                         }
                     }
                     updateFormCount();

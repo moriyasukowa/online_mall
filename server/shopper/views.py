@@ -860,7 +860,7 @@ def apply_refund(request):
             response_code = 1
         elif order.state == '已签收':
             # 提交申请，等待审核
-            new_order_state = '退款成功'
+            new_order_state = '退款中'
             refund_state = '退款申请中'
             response_code = 2
         else:
@@ -1093,3 +1093,118 @@ class AdminOrderDetailViewRF(APIView):
             context['msg'] = f'获取订单详情时发生错误: {e}'
             return Response(context, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+
+class RefundShippingAPIView(View):
+    """
+    退货物流信息提交API
+    POST /api/v1/shopper/refunds/<int:order_id>/shipping/
+    """
+    authentication_classes = []
+    permission_classes = []
+    def post(self, request, order_id):
+        """
+        提交退货物流信息
+        
+        参数:
+        - order_id: 订单ID
+        - shipping_id: 快递公司ID/名称
+        - shipping_number: 快递单号
+        """
+        try:
+            # 解析请求数据
+            try:
+                data = json.loads(request.body.decode('utf-8'))
+            except json.JSONDecodeError:
+                return JsonResponse({
+                    'state': 'error',
+                    'msg': '请求数据格式错误'
+                }, status=400)
+            
+            # 获取提交的数据
+            shipping_id = data.get('shipping_id', '').strip()
+            shipping_number = data.get('shipping_number', '').strip()
+            
+            # 验证数据非空
+            if not shipping_id:
+                return JsonResponse({
+                    'state': 'error',
+                    'msg': '请选择快递公司'
+                }, status=400)
+            
+            if not shipping_number:
+                return JsonResponse({
+                    'state': 'error',
+                    'msg': '请输入快递单号'
+                }, status=400)
+                
+
+            # 查找对应的退款单
+            try:
+                # 假设您有RefundInfos模型，根据订单ID查找退款单
+                
+                # 首先验证订单是否属于当前用户
+                try:
+                    order = OrderInfos.objects.get(id=order_id, user=request.user)
+                except OrderInfos.DoesNotExist:
+                    return JsonResponse({
+                        'state': 'error',
+                        'msg': '订单不存在或无权限访问'
+                    }, status=404)
+                
+                # 查找对应的退款单
+                try:
+                    refund = RefundInfos.objects.get(order_id=order_id)
+                except RefundInfos.DoesNotExist:
+                    return JsonResponse({
+                        'state': 'error',
+                        'msg': '未找到对应的退款申请'
+                    }, status=404)
+                
+                # 检查退款单状态是否允许提交物流信息
+                if refund.state not in ['申请成功']:  # 根据您的业务逻辑调整允许的状态
+                    return JsonResponse({
+                        'state': 'error',
+                        'msg': f'当前退款状态({refund.state})不允许提交退货物流信息'
+                    }, status=400)
+                
+            except Exception as e:
+                return JsonResponse({
+                    'state': 'error',
+                    'msg': '查找退款信息失败'
+                }, status=500)
+            
+            # 使用事务确保数据一致性
+            try:
+                with transaction.atomic():
+                    # 更新退款单的物流信息和状态
+                    refund.shipping_company = shipping_id
+                    refund.shipping_number = shipping_number
+                    refund.state = '退货中'
+                    refund.save()
+                    
+                    
+                    # 可选：记录操作日志
+                    # 如果您有操作日志模型，可以在这里记录
+                    
+                    return JsonResponse({
+                        'state': 'success',
+                        'msg': '退货物流信息提交成功',
+                        'data': {
+                            'refund_id': refund.id,
+                            'new_status': '退货中',
+                            'shipping_company': shipping_id,
+                            'shipping_number': shipping_number
+                        }
+                    })
+                    
+            except Exception as e:
+                return JsonResponse({
+                    'state': 'error',
+                    'msg': '提交物流信息失败，请稍后重试'
+                }, status=500)
+                
+        except Exception as e:
+            return JsonResponse({
+                'state': 'error',
+                'msg': '系统错误，请稍后重试'
+            }, status=500)

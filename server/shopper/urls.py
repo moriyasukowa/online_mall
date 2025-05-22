@@ -22,4 +22,6 @@ urlpatterns = [
     path('refunds/<int:order_id>/', get_refund_info, name='refund-detail'), # 添加这行
     path('refunds/apply/', apply_refund, name='apply_refund'),
     path('orders/<int:order_id>/confirm/', confirm_order_delivery,name='confirm-order-delivery'),
+    path('refunds/<int:order_id>/shipping/', RefundShippingAPIView.as_view(), 
+         name='submit_refund_shipping'),
 ]

@@ -45,7 +45,7 @@ class AddressCreateUpdateSerializer(serializers.ModelSerializer):
                  'district', 'detail', 'is_default']
 class PurchaseInfosSerializer(serializers.ModelSerializer):
     """购买信息序列化器"""
-
+ 
     class Meta:
         model = PurchaseInfos
         fields = '__all__'  

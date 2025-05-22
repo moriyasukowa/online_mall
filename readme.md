@@ -28,6 +28,6 @@ python manage.py migrate
 ## 3. 上传到 GitHub
 ```bash
 git add .
-git commit -m "5.22答辩前Debug"
+git commit -m "5.22 更新演示顺序"
 git push origin main
 ```

@@ -278,6 +278,7 @@ class RefundStockInOrderItemInline(admin.TabularInline):
                 'admin/css/vendor/select2/select2.css',
                 'admin/css/vendor/select2/select2.min.css',
                 'logistics/css/select_table.css',
+                'logistics/css/order_table.css',
             )
         }
         js = (
@@ -285,6 +286,7 @@ class RefundStockInOrderItemInline(admin.TabularInline):
             'admin/js/vendor/select2/select2.full.js',
             'admin/js/jquery.init.js',
             'logistics/js/select2_table.js',
+            'shopper/js/r_order_table.js'
         )
     model = RefundStockInOrderItem
     extra = 1
@@ -413,10 +415,10 @@ class RefundStockInOrderAdmin(admin.ModelAdmin):
                 # 更新退款单状态（如果需要）
                 if obj.refund_orders:
                     refund_order = obj.refund_orders
-                    if refund_order.state != '退款完成':
-                        refund_order.state = '退款完成'
+                    if refund_order.state != '退款成功':
+                        refund_order.state = '退款成功'
                         refund_order.save()
-                        messages.success(request, f"已将退款单 {refund_order.refund_id} 状态更新为'退款完成'。")
+                        messages.success(request, f"已将退款单 {refund_order.refund_id} 状态更新为'退款成功'。")
                     
         except ValidationError as e:
             messages.error(request, f"处理入库单关联操作失败（库存或订单状态）：{e}")

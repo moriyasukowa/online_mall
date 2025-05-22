@@ -301,8 +301,6 @@
   
           this.shippingSubmitting = true;
           try {
-              // *** API CALL SIMULATION ***
-              // Replace this with your actual API call
               console.log("Simulating API call to submit shipping info:", this.shippingForm);
                const response = await this.axios.post(`/api/v1/shopper/refunds/${this.orderId}/shipping/`, {
                    shipping_id: this.shippingForm.shipping_id,

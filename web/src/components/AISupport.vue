@@ -95,13 +95,12 @@ export default {
 3. 对用户的订单信息保持敏感，当用户询问订单相关问题时，参考提供的订单数据
 4. 当用户询问订单状态、物流信息或商品详情时，主动查询并提供相关订单数据
 5. 对于催发货和催退款审核等需求，给予适当安抚，如："我会尽快反馈给相关部门，帮您处理"
-6. 如果遇到系统中没有的信息，诚实告知并提供替代解决方案
-7. 避免使用过于复杂的术语，确保用户理解你的回答
+6. 避免使用过于复杂的术语，确保用户理解你的回答
 
 回答时，请注意：
 - 保持回答简洁，通常不超过3-4段文字
 - 对订单信息有针对性地回应，不要罗列所有订单信息
-- 不要编造不存在的信息
+- 如果顾客问的知识你不清楚，可以尽量推理作答，不要给出含糊的信息，比如“这个手机的处理器是[某个处理器]”（不行），尽量具体，比如“这个手机的处理器是骁龙880”。必要情况也可以给出不存在的信息(现在只是测试，之后会将你接入到商品数据库中)
 - 适当使用礼貌用语，但不要过于冗长
 
 根据用户提供的订单数据，你可以获取到订单ID、商品信息、价格、状态等关键信息，请善用这些信息来提供个性化的回答。`
@@ -111,7 +110,7 @@ export default {
   },
   created() {
     if (!this.geminiApiKey || this.geminiApiKey === 'YOUR_GEMINI_API_KEY') {
-        console.error("请在 Vue 组件脚本顶部设置您的 Gemini API Key!");
+        console.error("请在 Vue 组件脚本顶部设置您的 API Key!");
         this.isOnline = false;
     } else {
         this.apiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.geminiApiKey}`;

@@ -65,8 +65,7 @@ class RefundInfos(models.Model):
     status_before = models.CharField('退款前状态', max_length=20, choices=STATE, default='已支付', null=True, blank=True)
 
     def __str__(self):
-        return str(self.id)
-
+        return f"{self.id}@{self.user.username if self.user else '无用户'}@{self.created.strftime('%Y-%m-%d')}@{self.state}@{self.price}"
     class Meta:
         verbose_name = '退款信息'
         verbose_name_plural = '退款信息'
